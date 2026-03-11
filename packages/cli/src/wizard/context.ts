@@ -1,4 +1,4 @@
-import type { NodeRole } from "../config/schema.ts";
+import type { NodeRole, ProviderConfig } from "../config/schema.ts";
 
 /**
  * Accumulated state across wizard steps.
@@ -22,6 +22,7 @@ export interface WizardContext {
 
   // Step 4: provider
   provider: string;
+  providerConfig: ProviderConfig;
   apiKeyStored: boolean;
 
   // Step 5: peer
