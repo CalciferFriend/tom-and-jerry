@@ -1,111 +1,212 @@
 import * as p from "@clack/prompts";
 import pc from "picocolors";
+import { readFile, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { sshExec } from "@tom-and-jerry/core";
+import { addWindowsLoopbackProxy, isWindowsLoopbackProxyInstalled } from "@tom-and-jerry/core";
 import { ROLE_DEFAULTS } from "../../config/defaults.ts";
 import { isCancelled, type WizardContext } from "../context.ts";
+
+const execFileAsync = promisify(execFile);
+
+/** Resolve this machine's openclaw.json path */
+function localOpenClawConfigPath(): string {
+  if (process.platform === "win32") {
+    return join(process.env["USERPROFILE"] ?? homedir(), ".openclaw", "openclaw.json");
+  }
+  return join(homedir(), ".openclaw", "openclaw.json");
+}
+
+/** Read, merge, and write openclaw.json */
+async function patchLocalOpenClawConfig(patch: Record<string, unknown>): Promise<void> {
+  const path = localOpenClawConfigPath();
+  let existing: Record<string, unknown> = {};
+  try {
+    existing = JSON.parse(await readFile(path, "utf-8"));
+  } catch { /* first run */ }
+  const merged = deepMerge(existing, patch);
+  await writeFile(path, JSON.stringify(merged, null, 2), { mode: 0o600 });
+}
+
+function deepMerge(base: Record<string, unknown>, patch: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...base };
+  for (const [k, v] of Object.entries(patch)) {
+    if (v && typeof v === "object" && !Array.isArray(v) && typeof out[k] === "object" && !Array.isArray(out[k])) {
+      out[k] = deepMerge(out[k] as Record<string, unknown>, v as Record<string, unknown>);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+/** Restart the local OpenClaw gateway */
+async function restartLocalGateway(): Promise<boolean> {
+  try {
+    await execFileAsync("openclaw", ["gateway", "restart"], { timeout: 15_000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export async function stepGatewayBind(ctx: Partial<WizardContext>): Promise<Partial<WizardContext>> {
   const role = ctx.role!;
   const defaults = ROLE_DEFAULTS[role];
-  const peerDefaults = ROLE_DEFAULTS[role === "tom" ? "jerry" : "tom"];
+  const peerRole = role === "tom" ? "jerry" : "tom";
+  const peerDefaults = ROLE_DEFAULTS[peerRole];
 
-  // This node's bind mode
+  // ── Step 1: choose bind mode for THIS node ────────────────────────────────
   const thisBindMode = await p.select({
     message: `Gateway bind mode for this node (${ctx.name})`,
     initialValue: defaults.bindMode,
     options: [
-      { value: "loopback" as const, label: "Loopback (127.0.0.1)", hint: "local only — safest for orchestrator" },
-      { value: "tailscale" as const, label: "Tailscale IP", hint: "reachable by paired peer — required for executor" },
-      { value: "lan" as const, label: "LAN (0.0.0.0)", hint: "reachable by anyone on LAN — use with caution" },
+      { value: "loopback" as const, label: "Loopback (127.0.0.1)", hint: "local only — recommended for Tom" },
+      { value: "tailscale" as const, label: "Tailscale IP", hint: "peer-reachable — recommended for Jerry" },
+      { value: "lan" as const, label: "LAN (0.0.0.0)", hint: "all interfaces — use with caution" },
     ],
   });
+  if (isCancelled(thisBindMode)) { p.cancel("Setup cancelled."); process.exit(0); }
 
-  if (isCancelled(thisBindMode)) {
-    p.cancel("Setup cancelled.");
-    process.exit(0);
-  }
-
-  // Peer's gateway port
-  const peerGatewayPort = await p.text({
+  const peerGatewayPortStr = await p.text({
     message: "Gateway port on the peer node",
     initialValue: "18789",
-    validate: (v) => {
-      const n = parseInt(v, 10);
-      if (isNaN(n) || n < 1 || n > 65535) return "Enter a valid port";
-    },
+    validate: (v) => { const n = parseInt(v, 10); if (isNaN(n) || n < 1 || n > 65535) return "Enter a valid port"; },
   });
+  if (isCancelled(peerGatewayPortStr)) { p.cancel("Setup cancelled."); process.exit(0); }
+  const peerGatewayPort = parseInt(peerGatewayPortStr as string, 10);
 
-  if (isCancelled(peerGatewayPort)) {
-    p.cancel("Setup cancelled.");
-    process.exit(0);
+  // ── Step 2: patch THIS node's openclaw.json ───────────────────────────────
+  {
+    const s = p.spinner();
+    s.start("Updating local gateway config...");
+    try {
+      const bindPatch: Record<string, unknown> = {
+        gateway: {
+          bind: thisBindMode,
+          // For Jerry (tailscale bind), also add Tom's IP to trustedProxies
+          ...(thisBindMode === "tailscale" && ctx.peerTailscaleIP
+            ? { trustedProxies: ["127.0.0.1", ctx.peerTailscaleIP] }
+            : {}),
+          // For Tom (loopback bind), enable tailscale mode off to keep loopback
+          ...(thisBindMode === "loopback"
+            ? { tailscale: { mode: "off" } }
+            : { tailscale: { mode: "on" } }),
+        },
+      };
+      await patchLocalOpenClawConfig(bindPatch);
+      s.stop(pc.green(`✓ openclaw.json updated (bind=${thisBindMode})`));
+    } catch (err) {
+      s.stop(pc.yellow("⚠ Could not update local openclaw.json — update manually if needed"));
+      p.log.warn(`Path: ${localOpenClawConfigPath()}`);
+    }
   }
 
-  // If Tom is setting up and peer is reachable, offer to update peer's gateway config via SSH
-  const peerBindMode = peerDefaults.bindMode;
+  // ── Step 3: For Jerry on Windows with tailscale bind ─────────────────────
+  //    The local TUI won't work unless we add a loopback→tailscale portproxy.
+  //    Discovered during Calcifer/GLaDOS reference setup (2026-03-11).
+  if (thisBindMode === "tailscale" && process.platform === "win32" && ctx.tailscaleIP) {
+    const proxyConfig = { tailscaleIP: ctx.tailscaleIP, port: 18789 };
+    const alreadyInstalled = await isWindowsLoopbackProxyInstalled(proxyConfig);
 
-  if (role === "tom" && ctx.peerTailscaleIP) {
-    const updatePeer = await p.confirm({
-      message: `Update the peer's gateway bind to "${peerBindMode}" and add this node's Tailscale IP to trustedProxies?`,
+    if (!alreadyInstalled) {
+      p.log.info(
+        pc.cyan("ℹ") +
+        " Jerry's gateway binds to the Tailscale IP so Tom can reach it.\n" +
+        "  But the local OpenClaw TUI connects to 127.0.0.1 — which won't be listening.\n" +
+        "  Installing a loopback portproxy so the TUI works locally too.",
+      );
+
+      const s = p.spinner();
+      s.start("Installing Windows loopback portproxy (netsh)...");
+      try {
+        await addWindowsLoopbackProxy(proxyConfig);
+        s.stop(pc.green("✓ Loopback portproxy installed — TUI will work locally"));
+      } catch {
+        s.stop(pc.yellow("⚠ Could not install portproxy automatically (may need elevation)"));
+        p.log.warn("Run this manually in an elevated prompt:");
+        p.log.message(pc.cyan(`  netsh interface portproxy add v4tov4 listenaddress=127.0.0.1 listenport=18789 connectaddress=${ctx.tailscaleIP} connectport=18789`));
+      }
+    } else {
+      p.log.info(pc.green("✓") + " Loopback portproxy already installed");
+    }
+  }
+
+  // ── Step 4: restart local gateway to pick up the new bind ─────────────────
+  {
+    const restart = await p.confirm({
+      message: "Restart the local gateway to apply the new bind setting?",
       initialValue: true,
     });
-
-    if (isCancelled(updatePeer)) {
-      p.cancel("Setup cancelled.");
-      process.exit(0);
+    if (!isCancelled(restart) && restart) {
+      const s = p.spinner();
+      s.start("Restarting gateway...");
+      const ok = await restartLocalGateway();
+      s.stop(ok ? pc.green("✓ Gateway restarted") : pc.yellow("⚠ Could not restart — restart manually with: openclaw gateway restart"));
     }
+  }
 
-    if (updatePeer) {
-      const spinner = p.spinner();
-      spinner.start("Updating peer gateway config via SSH...");
+  // ── Step 5: update PEER's gateway config via SSH (Tom setting up Jerry) ───
+  const peerBindMode = peerDefaults.bindMode;
 
+  if (role === "tom" && ctx.peerTailscaleIP && ctx.peerSSHUser) {
+    const updatePeer = await p.confirm({
+      message: `Update the peer's (Jerry) gateway to bind=tailscale and add your Tailscale IP to trustedProxies?`,
+      initialValue: true,
+    });
+    if (!isCancelled(updatePeer) && updatePeer) {
+      const s = p.spinner();
+      s.start("Updating peer gateway config via SSH...");
       try {
-        // Build a jq-like update command. Works on both Linux and Windows (via powershell).
         const peerOS = ctx.peerOS ?? "linux";
 
         if (peerOS === "windows") {
-          // PowerShell command to update openclaw.json on Windows
+          // PowerShell deep-merge of gateway config on Windows Jerry
+          const tomIP = ctx.tailscaleIP ?? "";
           const psCmd = [
             `$f = "$env:USERPROFILE\\.openclaw\\openclaw.json"`,
-            `$j = Get-Content $f -Raw | ConvertFrom-Json`,
-            `if (-not $j.gateway) { $j | Add-Member -NotePropertyName gateway -NotePropertyValue ([PSCustomObject]@{}) }`,
-            `$j.gateway | Add-Member -NotePropertyName bind -NotePropertyValue "tailscale" -Force`,
-            `if (-not $j.gateway.tailscale) { $j.gateway | Add-Member -NotePropertyName tailscale -NotePropertyValue ([PSCustomObject]@{}) }`,
-            `$j.gateway.tailscale | Add-Member -NotePropertyName mode -NotePropertyValue "on" -Force`,
-            `$proxies = @("127.0.0.1", "${ctx.tailscaleIP}")`,
-            `$j.gateway | Add-Member -NotePropertyName trustedProxies -NotePropertyValue $proxies -Force`,
-            `$j | ConvertTo-Json -Depth 10 | Set-Content $f`,
+            `$j = try { Get-Content $f -Raw | ConvertFrom-Json } catch { [PSCustomObject]@{} }`,
+            `if (-not $j.PSObject.Properties['gateway']) { $j | Add-Member -NotePropertyName gateway -NotePropertyValue ([PSCustomObject]@{}) }`,
+            `$j.gateway | Add-Member -NotePropertyName bind -NotePropertyValue 'tailscale' -Force`,
+            `if (-not $j.gateway.PSObject.Properties['tailscale']) { $j.gateway | Add-Member -NotePropertyName tailscale -NotePropertyValue ([PSCustomObject]@{}) }`,
+            `$j.gateway.tailscale | Add-Member -NotePropertyName mode -NotePropertyValue 'on' -Force`,
+            // Merge trustedProxies — preserve existing, add Tom's IP
+            `$existing = if ($j.gateway.PSObject.Properties['trustedProxies']) { @($j.gateway.trustedProxies) } else { @('127.0.0.1') }`,
+            `$j.gateway | Add-Member -NotePropertyName trustedProxies -NotePropertyValue ($existing + '${tomIP}' | Select-Object -Unique) -Force`,
+            `$j | ConvertTo-Json -Depth 10 | Set-Content $f -Encoding UTF8`,
           ].join("; ");
-
           await sshExec(
-            { host: ctx.peerTailscaleIP, user: ctx.peerSSHUser!, keyPath: ctx.peerSSHKeyPath! },
-            `powershell -Command "${psCmd.replace(/"/g, '\\"')}"`,
-            15_000,
+            { host: ctx.peerTailscaleIP, user: ctx.peerSSHUser, keyPath: ctx.peerSSHKeyPath! },
+            `powershell -NoProfile -Command "${psCmd.replace(/"/g, '\\"')}"`,
+            20_000,
           );
         } else {
-          // Linux/macOS — use node inline script (jq might not be available)
-          const nodeCmd = `node -e "
-            const fs = require('fs');
-            const p = require('os').homedir() + '/.openclaw/openclaw.json';
-            let j = {};
-            try { j = JSON.parse(fs.readFileSync(p, 'utf8')); } catch {}
-            j.gateway = j.gateway || {};
-            j.gateway.bind = 'tailscale';
-            j.gateway.tailscale = { mode: 'on' };
-            j.gateway.trustedProxies = ['127.0.0.1', '${ctx.tailscaleIP}'];
-            fs.writeFileSync(p, JSON.stringify(j, null, 2));
-          "`;
-
+          // Linux/macOS — inline Node.js deep-merge
+          const nodeCmd = `node --input-type=module << 'EOF'\nimport {readFileSync,writeFileSync} from 'fs';\nimport {homedir} from 'os';\nimport {join} from 'path';\nconst p=join(homedir(),'.openclaw','openclaw.json');\nlet j={};\ntry{j=JSON.parse(readFileSync(p,'utf8'));}catch{}\nj.gateway=j.gateway||{};\nj.gateway.bind='tailscale';\nj.gateway.tailscale={mode:'on'};\nconst existing=Array.isArray(j.gateway.trustedProxies)?j.gateway.trustedProxies:['127.0.0.1'];\nj.gateway.trustedProxies=[...new Set([...existing,'${ctx.tailscaleIP}'])];\nwriteFileSync(p,JSON.stringify(j,null,2),{mode:0o600});\nEOF`;
           await sshExec(
-            { host: ctx.peerTailscaleIP, user: ctx.peerSSHUser!, keyPath: ctx.peerSSHKeyPath! },
+            { host: ctx.peerTailscaleIP, user: ctx.peerSSHUser, keyPath: ctx.peerSSHKeyPath! },
             nodeCmd,
             15_000,
           );
         }
 
-        spinner.stop(`${pc.green("✓")} Peer gateway updated: bind=tailscale, trustedProxies includes ${ctx.tailscaleIP}`);
+        // Also restart peer gateway
+        const peerRestartCmd = peerOS === "windows"
+          ? `powershell -NoProfile -Command "Stop-Process -Name node -Force -ErrorAction SilentlyContinue; Start-Sleep 2; Start-Process openclaw -ArgumentList 'gateway' -WindowStyle Hidden"`
+          : `pkill -f 'openclaw.*gateway' || true; sleep 2; nohup openclaw gateway &>/dev/null &`;
+        await sshExec(
+          { host: ctx.peerTailscaleIP, user: ctx.peerSSHUser, keyPath: ctx.peerSSHKeyPath! },
+          peerRestartCmd,
+          15_000,
+        ).catch(() => { /* restart is best-effort */ });
+
+        s.stop(pc.green(`✓ Peer gateway updated and restarted (bind=tailscale, trustedProxies +${ctx.tailscaleIP})`));
       } catch (err) {
-        spinner.stop(`${pc.yellow("!")} Could not update peer gateway config — you may need to do this manually.`);
-        p.log.warn("Ensure the peer's openclaw.json has: gateway.bind = 'tailscale', gateway.trustedProxies includes this node's Tailscale IP.");
+        s.stop(pc.yellow("⚠ Could not update peer gateway via SSH — update manually"));
+        p.log.warn("On the Jerry machine, set: gateway.bind = 'tailscale', gateway.trustedProxies includes this node's Tailscale IP");
       }
     }
   }
@@ -114,6 +215,6 @@ export async function stepGatewayBind(ctx: Partial<WizardContext>): Promise<Part
     ...ctx,
     thisBindMode: thisBindMode as "loopback" | "tailscale" | "lan",
     peerBindMode: peerBindMode as "loopback" | "tailscale" | "lan",
-    peerGatewayPort: parseInt(peerGatewayPort as string, 10),
+    peerGatewayPort,
   };
 }

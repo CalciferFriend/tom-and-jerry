@@ -2,7 +2,7 @@
 
 Two agents. Separate machines. One command to wire them.
 
-[![CI](https://github.com/nicolasmauro/tom-and-jerry/actions/workflows/ci.yml/badge.svg)](https://github.com/nicolasmauro/tom-and-jerry/actions/workflows/ci.yml)
+[![CI](https://github.com/CalciferFriend/tom-and-jerry/actions/workflows/ci.yml/badge.svg)](https://github.com/CalciferFriend/tom-and-jerry/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/tom-and-jerry)](https://www.npmjs.com/package/tom-and-jerry)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -142,7 +142,7 @@ See [`docs/reference/calcifer-glados.md`](docs/reference/calcifer-glados.md) for
 ## Development
 
 ```bash
-git clone https://github.com/nicolasmauro/tom-and-jerry
+git clone https://github.com/CalciferFriend/tom-and-jerry
 cd tom-and-jerry
 pnpm install
 pnpm build
