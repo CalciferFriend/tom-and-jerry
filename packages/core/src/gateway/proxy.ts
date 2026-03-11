@@ -61,6 +61,11 @@ export function buildSocatCommand(config: ProxyConfig): string {
  */
 export function buildSystemdService(config: ProxyConfig): string {
   const port = config.port ?? 18789;
+  // GLaDOS review (2026-03-11): systemd user services run with a minimal PATH,
+  // so 'socat' won't be found without an absolute path. Use /usr/bin/socat or
+  // detect the path at setup time via 'which socat'.
+  const socatBin = "/usr/bin/socat"; // override with which() result at install time
+  const cmd = buildSocatCommand(config).replace(/^socat/, socatBin);
   return `[Unit]
 Description=Tom Tailscale→Loopback Gateway Proxy (port ${port})
 After=network.target tailscaled.service openclaw-gateway.service
@@ -68,7 +73,7 @@ Requires=openclaw-gateway.service
 
 [Service]
 Type=simple
-ExecStart=${buildSocatCommand(config)}
+ExecStart=${cmd}
 Restart=always
 RestartSec=5
 
