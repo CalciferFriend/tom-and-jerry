@@ -24,6 +24,8 @@ import * as p from "@clack/prompts";
 import pc from "picocolors";
 import { readFile } from "node:fs/promises";
 import { loadTaskState, updateTaskState, type TaskResult } from "../state/tasks.ts";
+import { loadConfig } from "../config/store.ts";
+import { estimateCost } from "@tom-and-jerry/core";
 
 export interface ResultOptions {
   fail?: boolean;
@@ -87,6 +89,18 @@ export async function result(taskId: string, output: string | undefined, opts: R
       tokens_used: opts.tokens ? parseInt(opts.tokens, 10) : undefined,
       duration_ms: opts.durationMs ? parseInt(opts.durationMs, 10) : undefined,
     };
+  }
+
+  // Auto-compute cost if tokens are known and cost wasn't explicitly provided
+  if (resultPayload.tokens_used && resultPayload.cost_usd === undefined) {
+    const config = await loadConfig();
+    const model = config?.this_node?.provider?.model
+      ? `${config.this_node.provider.kind ?? "anthropic"}/${config.this_node.provider.model}`
+      : "anthropic/claude-sonnet-4-6";
+    const computed = estimateCost(resultPayload.tokens_used, model);
+    if (computed !== null) {
+      resultPayload.cost_usd = computed;
+    }
   }
 
   const newStatus = opts.fail ? "failed" : "completed";

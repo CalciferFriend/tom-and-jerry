@@ -70,6 +70,15 @@ export type { ProxyConfig } from "./gateway/proxy.ts";
 export { suggestRouting, routeTask } from "./routing.ts";
 export type { RoutingHint, RoutingDecision } from "./routing.ts";
 
+// Provider pricing
+export {
+  getPricing,
+  estimateCost,
+  formatCost,
+  formatTokens,
+} from "./providers/pricing.ts";
+export type { TokenPrice } from "./providers/pricing.ts";
+
 // Capability registry
 export {
   TJCapabilityReport,

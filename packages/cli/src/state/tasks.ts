@@ -44,6 +44,8 @@ export interface TaskResult {
   artifacts: string[];
   tokens_used?: number;
   duration_ms?: number;
+  /** Computed USD cost (stored at result time for budget tracking) */
+  cost_usd?: number;
 }
 
 function taskPath(id: string): string {

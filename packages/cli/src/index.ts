@@ -16,6 +16,7 @@ import {
   capabilitiesShow,
   capabilitiesRoute,
 } from "./commands/capabilities.ts";
+import { budget } from "./commands/budget.ts";
 import { loadConfig } from "./config/store.ts";
 
 const program = new Command()
@@ -118,6 +119,18 @@ program
   .command("doctor")
   .description("Diagnose connectivity and configuration issues")
   .action(doctor);
+
+program
+  .command("budget")
+  .description("Show token usage and cost spend across recent tasks")
+  .option("--today", "Show today's usage only")
+  .option("--month", "Show the last 30 days")
+  .option("--all", "Show all-time usage")
+  .option("--tasks", "Include per-task breakdown table")
+  .option("--json", "Output raw JSON")
+  .action((opts: { today?: boolean; month?: boolean; all?: boolean; tasks?: boolean; json?: boolean }) => {
+    return budget(opts);
+  });
 
 // ─── Capabilities ────────────────────────────────────────────────────────────
 
