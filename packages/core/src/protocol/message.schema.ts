@@ -82,11 +82,13 @@ export const TJLatentPayload = z.object({
   sender_model: z.string(),
   sender_hidden_dim: z.number().int().positive(),
 
-  // Vision Wormhole codec output (primary path for heterogeneous models)
+  // Vision Wormhole codec output (primary path for heterogeneous models).
+  // Set codec_output_dim=0 and codec_tokens=0 on the KV-cache (LatentMAS) path
+  // where no codec compression is used.
   codec_version: z.string().optional(),
-  codec_output_dim: z.number().int().positive(),
-  codec_tokens: z.number().int().positive(),
-  compressed_latent: z.string().optional(), // base64-encoded float16 tensor [tokens x output_dim]
+  codec_output_dim: z.number().int().nonnegative(),
+  codec_tokens: z.number().int().nonnegative(),
+  compressed_latent: z.string().optional(), // base64-encoded float32 tensor [tokens x output_dim]
 
   // LatentMAS KV-cache path (same-family models only, training-free)
   kv_model: z.string().optional(), // must match receiver model exactly
