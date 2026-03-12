@@ -1,16 +1,27 @@
-# docker-compose.yml — tom-and-jerry Tom node
+# docker-compose.yml — tom-and-jerry
 #
-# Spin up a Tom (orchestrator) node with one command.
-# Jerry (executor) is expected to be a real machine — typically a Windows PC
-# with GPU — so no compose service is defined for it.
+# Profiles:
+#   - default (no profile): Tom only
+#   - jerry-cpu: Tom + Jerry (CPU/Ollama)
+#   - jerry-cuda: Tom + Jerry (NVIDIA GPU/Ollama)
 #
-# Quick start:
+# Quick start (Tom only):
 #   cp docker/.env.example docker/.env
-#   # Edit docker/.env with your keys
 #   docker compose -f docker/docker-compose.yml up -d
+#
+# With Jerry (CPU Ollama):
+#   docker compose -f docker/docker-compose.yml --profile jerry-cpu up -d
+#
+# With Jerry (NVIDIA GPU):
+#   docker compose -f docker/docker-compose.yml --profile jerry-cuda up -d
+#
+# NOTE: Tom and Jerry usually run on *separate machines*. This compose file
+# is useful when you want to prototype both sides locally or run a Jerry
+# in a Linux container on the same Tailscale network.
 
 name: tom-and-jerry
 
+# ─── Tom (orchestrator) ───────────────────────────────────────────────────────
 services:
   tom:
     build:
@@ -20,9 +31,6 @@ services:
     container_name: tom
     restart: unless-stopped
 
-    # Tailscale needs host network or special cap to route properly.
-    # cap_add gives it the tun device; network_mode host gives it
-    # direct network access so Tailscale IP binds are reachable.
     network_mode: host
     cap_add:
       - NET_ADMIN
@@ -40,14 +48,14 @@ services:
       TOM_EMOJI: "${TOM_EMOJI:-🐱}"
       TOM_MODEL: "${TOM_MODEL:-claude-sonnet-4-6}"
       TOM_GATEWAY_PORT: "${TOM_GATEWAY_PORT:-18789}"
-      TOM_GATEWAY_TOKEN: "${TOM_GATEWAY_TOKEN:-}"  # generated on first boot if empty
+      TOM_GATEWAY_TOKEN: "${TOM_GATEWAY_TOKEN:-}"  # auto-generated if empty
 
-      # Jerry peer (fill in after `tj onboard` on Jerry)
+      # Jerry peer connection (fill in after Jerry starts)
       JERRY_TAILSCALE_HOSTNAME: "${JERRY_TAILSCALE_HOSTNAME:-}"
       JERRY_TAILSCALE_IP: "${JERRY_TAILSCALE_IP:-}"
       JERRY_GATEWAY_PORT: "${JERRY_GATEWAY_PORT:-18789}"
       JERRY_GATEWAY_TOKEN: "${JERRY_GATEWAY_TOKEN:-}"
-      JERRY_SSH_USER: "${JERRY_SSH_USER:-}"
+      JERRY_SSH_USER: "${JERRY_SSH_USER:-root}"
 
       # Wake-on-LAN (optional)
       JERRY_WOL_ENABLED: "${JERRY_WOL_ENABLED:-false}"
@@ -55,17 +63,11 @@ services:
       JERRY_WOL_BROADCAST: "${JERRY_WOL_BROADCAST:-}"
 
     volumes:
-      # Persist Tailscale state so re-runs don't burn new auth keys
-      - tailscale-state:/var/lib/tailscale
-
-      # Persist OpenClaw and TJ configs across container restarts
+      - tailscale-tom:/var/lib/tailscale
       - tom-openclaw:/root/.openclaw
       - tom-tj-config:/root/.tom-and-jerry
-
-      # Mount SSH key for peer access (create with: ssh-keygen -t ed25519)
-      # Uncomment and adjust path:
+      # Mount SSH key if using SSH to Jerry:
       # - ./ssh/id_ed25519:/root/.ssh/id_ed25519:ro
-      # - ./ssh/id_ed25519.pub:/root/.ssh/id_ed25519.pub:ro
 
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:${TOM_GATEWAY_PORT:-18789}/health"]
@@ -80,7 +82,128 @@ services:
         max-size: "10m"
         max-file: "3"
 
+# ─── Jerry — CPU / Ollama (profile: jerry-cpu) ────────────────────────────────
+  jerry-cpu:
+    profiles: ["jerry-cpu"]
+    build:
+      context: ..
+      dockerfile: docker/jerry/Dockerfile
+    image: calcifer-ai/jerry:latest
+    container_name: jerry
+    restart: unless-stopped
+
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun
+
+    environment:
+      TS_AUTHKEY: "${JERRY_TS_AUTHKEY:-${TS_AUTHKEY}}"
+      JERRY_NAME: "${JERRY_NAME:-Jerry}"
+      JERRY_EMOJI: "${JERRY_EMOJI:-🐭}"
+      JERRY_MODEL: "${JERRY_MODEL:-llama3.2}"
+      JERRY_PROVIDER: "${JERRY_PROVIDER:-ollama}"
+      JERRY_GATEWAY_PORT: "${JERRY_GATEWAY_PORT:-18789}"
+      JERRY_GATEWAY_TOKEN: "${JERRY_GATEWAY_TOKEN:-}"
+      JERRY_OLLAMA_MODELS: "${JERRY_OLLAMA_MODELS:-llama3.2}"
+
+      # Tom peer (so Jerry knows where to report back)
+      TOM_NAME: "${TOM_NAME:-Tom}"
+      TOM_TAILSCALE_IP: "${TOM_TAILSCALE_IP:-}"
+      TOM_GATEWAY_PORT: "${TOM_GATEWAY_PORT:-18789}"
+      TOM_GATEWAY_TOKEN: "${TOM_GATEWAY_TOKEN:-}"
+
+      # Tom's SSH public key (so Tom can SSH to Jerry)
+      TOM_SSH_PUBKEY: "${TOM_SSH_PUBKEY:-}"
+
+    volumes:
+      - tailscale-jerry:/var/lib/tailscale
+      - jerry-openclaw:/root/.openclaw
+      - jerry-tj-config:/root/.tom-and-jerry
+      - jerry-ollama:/root/.ollama  # persist downloaded models
+
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:${JERRY_GATEWAY_PORT:-18789}/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 120s  # Ollama startup takes longer
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ─── Jerry — NVIDIA CUDA (profile: jerry-cuda) ────────────────────────────────
+  jerry-cuda:
+    profiles: ["jerry-cuda"]
+    build:
+      context: ..
+      dockerfile: docker/jerry/Dockerfile.cuda
+    image: calcifer-ai/jerry-cuda:latest
+    container_name: jerry
+    restart: unless-stopped
+
+    # GPU access
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun
+
+    environment:
+      TS_AUTHKEY: "${JERRY_TS_AUTHKEY:-${TS_AUTHKEY}}"
+      JERRY_NAME: "${JERRY_NAME:-Jerry}"
+      JERRY_EMOJI: "${JERRY_EMOJI:-🤖}"
+      JERRY_MODEL: "${JERRY_MODEL:-llama3.2}"
+      JERRY_PROVIDER: "${JERRY_PROVIDER:-ollama}"
+      JERRY_GATEWAY_PORT: "${JERRY_GATEWAY_PORT:-18789}"
+      JERRY_GATEWAY_TOKEN: "${JERRY_GATEWAY_TOKEN:-}"
+      JERRY_OLLAMA_MODELS: "${JERRY_OLLAMA_MODELS:-llama3.2}"
+
+      TOM_NAME: "${TOM_NAME:-Tom}"
+      TOM_TAILSCALE_IP: "${TOM_TAILSCALE_IP:-}"
+      TOM_GATEWAY_PORT: "${TOM_GATEWAY_PORT:-18789}"
+      TOM_GATEWAY_TOKEN: "${TOM_GATEWAY_TOKEN:-}"
+      TOM_SSH_PUBKEY: "${TOM_SSH_PUBKEY:-}"
+
+    volumes:
+      - tailscale-jerry:/var/lib/tailscale
+      - jerry-openclaw:/root/.openclaw
+      - jerry-tj-config:/root/.tom-and-jerry
+      - jerry-ollama:/root/.ollama
+
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:${JERRY_GATEWAY_PORT:-18789}/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 180s  # First GPU boot + model pull takes time
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ─── Volumes ──────────────────────────────────────────────────────────────────
 volumes:
-  tailscale-state:
+  tailscale-tom:
+  tailscale-jerry:
   tom-openclaw:
   tom-tj-config:
+  jerry-openclaw:
+  jerry-tj-config:
+  jerry-ollama:   # Large volume — Ollama models can be multi-GB

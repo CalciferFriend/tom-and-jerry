@@ -119,12 +119,34 @@
 
 ---
 
-## Phase 4 — Community
+## Phase 4 — Community 🚧
 
-- [ ] `tj publish` — share your node config (anonymized) to a public registry
-- [ ] Pre-built Jerry images (RTX 3070 Ti, M2 Mac, Raspberry Pi 5)
+### 4a. Community registry (Calcifer) ✅ (2026-03-12)
+- [x] `tj publish` — publish anonymised node card to GitHub Gist registry
+- [x] `tj discover` — browse community nodes with GPU/skill/provider/OS filters
+- [x] `TJNodeCard` schema with capabilities, WOL support, tags, description
+
+### 4b. Jerry Docker images (Calcifer) ✅ (2026-03-12)
+- [x] `docker/jerry/Dockerfile` — CPU/Ollama Jerry image (Debian + Node 22 + Ollama)
+- [x] `docker/jerry/Dockerfile.cuda` — NVIDIA CUDA variant (tested: RTX 3070 Ti+)
+- [x] `docker/jerry/entrypoint.sh` — Tailscale auth, SSH server, Ollama start, config gen
+- [x] `docker/jerry/pull-models.sh` — pull comma-separated models at startup
+- [x] `docker-compose.yml` — profiles: `jerry-cpu` and `jerry-cuda` added alongside Tom
+- [x] `docker/.env.example` — unified env template for both nodes
+- [ ] Pre-built M2 Mac instructions (Docker not ideal; `tj onboard` flow is better)
+- [ ] Raspberry Pi 5 variant (ARM64 base image + quantized Ollama models)
+
+### 4c. `tj logs` — task history viewer (Calcifer) ✅ (2026-03-12)
+- [x] Pretty-printed log view with status badges, relative timestamps, peer name
+- [x] Filters: --status, --peer, --since (24h / 7d / 30m), --limit
+- [x] --output flag to include result text inline
+- [x] --json for machine-readable piping
+- [x] --follow mode: live tail with 2s polling, highlights new/updated tasks
+
+### 4d. Discord community + showcase
 - [ ] Discord community for tom-and-jerry setups
 - [ ] Showcase: what are people building with it?
+- [ ] Docs site (VitePress or similar)
 
 ---
 

@@ -18,6 +18,9 @@ import {
 } from "./commands/capabilities.ts";
 import { budget } from "./commands/budget.ts";
 import { peers } from "./commands/peers.ts";
+import { publish } from "./commands/publish.ts";
+import { discover } from "./commands/discover.ts";
+import { logs } from "./commands/logs.ts";
 import { loadConfig } from "./config/store.ts";
 
 const program = new Command()
@@ -180,5 +183,49 @@ program
   .option("--ping", "Live reachability check for each peer via Tailscale ping")
   .option("--json", "Output as JSON")
   .action((opts: { ping?: boolean; json?: boolean }) => peers(opts));
+
+// ─── Community registry ───────────────────────────────────────────────────────
+
+program
+  .command("publish")
+  .description("Publish an anonymised node card to the community registry (GitHub Gist)")
+  .option("--tags <csv>", "Comma-separated tags, e.g. rtx3070ti,comfyui,rag")
+  .option("--description <text>", "Short description shown in tj discover")
+  .option("--token <token>", "GitHub personal access token (or set GITHUB_TOKEN env var)")
+  .option("--update", "Force update even if no gist_id saved locally")
+  .option("--dry", "Print the node card without publishing")
+  .option("--json", "Output result as JSON")
+  .action((opts: { tags?: string; description?: string; token?: string; update?: boolean; dry?: boolean; json?: boolean }) => {
+    return publish(opts);
+  });
+
+program
+  .command("logs")
+  .description("Show task history with filtering and live-tail support")
+  .option("--limit <n>", "Max tasks to show (default: 50)", "50")
+  .option("--status <status>", "Filter by status: pending|running|completed|failed|timeout")
+  .option("--peer <name>", "Filter by peer node name (substring match)")
+  .option("--since <duration>", "Show tasks from last N time units, e.g. 24h, 7d, 30m")
+  .option("--output", "Include result output text in the log")
+  .option("--json", "Output raw JSON array")
+  .option("--follow", "Live tail: poll for new tasks every 2s")
+  .action((opts: { limit?: string; status?: string; peer?: string; since?: string; output?: boolean; json?: boolean; follow?: boolean }) => {
+    return logs(opts);
+  });
+
+program
+  .command("discover")
+  .description("Browse the community node registry — nodes published with tj publish")
+  .option("--role <role>", "Filter by role: tom | jerry")
+  .option("--gpu <backend>", "Filter by GPU backend: cuda | rocm | metal")
+  .option("--skill <skill>", "Filter by skill tag, e.g. image-gen | transcription")
+  .option("--provider <kind>", "Filter by provider: anthropic | openai | ollama | lmstudio")
+  .option("--os <os>", "Filter by OS: linux | windows | macos")
+  .option("--limit <n>", "Max results (default: 20)", "20")
+  .option("--json", "Output as JSON")
+  .option("--token <token>", "GitHub token (higher rate limit)")
+  .action((opts: { role?: string; gpu?: string; skill?: string; provider?: string; os?: string; limit?: string; json?: boolean; token?: string }) => {
+    return discover({ ...opts, limit: opts.limit ? parseInt(opts.limit) : undefined });
+  });
 
 program.parseAsync();
