@@ -203,16 +203,19 @@
 - [x] Support for LatentMAS KV-cache path (same-family models, training-free)
 - [x] Mandatory text fallback for backwards compatibility
 - [x] Serialization helpers: serializeLatent() and deserializeLatent()
+- [x] Fixed: serializeLatent buffer overflow (float32 4B/element, not float16 2B/element)
+- [x] Fixed: codec_output_dim/codec_tokens nonnegative (0 valid on KV-cache path)
 - [x] Type guards: isLatentMessage()
 - [x] Factory helper: createLatentMessage()
-- [x] Tests: 9 new tests covering parsing, round-trip serialization, edge cases
+- [x] Tests: 9 new tests covering parsing, round-trip serialization, edge cases (all passing)
 
-### 6b. HLCA sender integration (Calcifer)
-- [ ] Hook into OpenClaw gateway to extract hidden states mid-inference
+### 6b. HLCA sender integration (Calcifer) ✅ (2026-03-12)
+- [ ] Hook into OpenClaw gateway to extract hidden states mid-inference (awaits upstream codec)
 - [ ] Implement Vision Wormhole codec adapter (compress 2048d → 512d via visual encoder)
-- [ ] Add `--latent` flag to `tj send` command
-- [ ] Auto-detect if peer supports latent via capability negotiation
-- [ ] Fallback: if peer doesn't advertise latent support, send text instead
+- [x] Add `--latent` flag to `tj send` command (hard-require latent; error if peer lacks it)
+- [x] Add `--auto-latent` flag — prefer latent, fall back to text if peer doesn't support it
+- [x] Auto-detect if peer supports latent via cached capability negotiation
+- [x] Fallback: if peer doesn't advertise latent support, send text instead
 
 ### 6c. HLCA receiver integration (GLaDOS)
 - [ ] OpenClaw gateway endpoint to accept TJLatentMessage
