@@ -15,6 +15,33 @@ An open protocol and setup wizard for connecting two [OpenClaw](https://github.c
 
 Tom can't catch Jerry but can't function without him. Jerry runs fast, disappears when done. The dynamic is the product.
 
+---
+
+## Mission
+
+> *"We do not have organs of communication. Our brains can display our thoughts to the outside world, thereby achieving communication."*
+> — Cixin Liu, The Dark Forest
+
+Today, tom-and-jerry speaks text. Tom sends a prompt. Jerry sends a response. That works — and it's how every multi-agent system in production works right now.
+
+But text is a lossy compression of thought. Every message forces an agent to collapse its rich internal state into a sequence of tokens, discarding alternative reasoning paths, nuance, and structure that never survives the translation. The other agent then reconstructs meaning from those tokens — a game of telephone running at the speed of inference.
+
+**Our mission is to push the boundaries of what inter-agent communication can be — and to build the transport and memory-sharing layer that makes it possible as those boundaries move.**
+
+The immediate question is practical: how do you connect two machines, wake a sleeping GPU node, route a task, track cost, and get a result back? That's what tom-and-jerry does today.
+
+The deeper question is architectural: **what does the transport layer look like when the payload isn't text at all?**
+
+Recent research ([Interlat](https://arxiv.org/abs/2511.09149), [LatentMAS](https://arxiv.org/abs/2511.20639)) shows that agents can communicate directly via hidden states — raw continuous vectors passed between models before any token is decoded. The results are significant: up to 24× faster inference, 80% fewer tokens, measurably higher accuracy on complex reasoning tasks. Interlat does this across heterogeneous model architectures. LatentMAS does it training-free via KV cache sharing.
+
+Neither paper ships a production transport layer. That's the gap tom-and-jerry is positioned to fill.
+
+The TJMessage protocol today carries text. A future `TJLatentMessage` carries hidden states — with text fallback for nodes that don't support it, capability negotiation at pairing time, and the same Tailscale/WOL/gateway infrastructure underneath. The physical-separation constraint stays. The payload evolves.
+
+We're building the pipes. The signal running through them will get stranger and more powerful over time.
+
+→ [Full research notes and integration roadmap](/docs/future)
+
 ## Quickstart
 
 ```bash
