@@ -94,10 +94,12 @@
 - [ ] Jerry's gateway serves GET /capabilities → returns capabilities.json
 - [ ] Auth: verify gateway token before serving (same as /health)
 
-### 3c. Budget tracking (Calcifer)
-- [ ] Token/cost tracking per session in task state
-- [ ] `tj budget` command: show spend across recent tasks
-- [ ] Route cheap tasks to cloud, expensive ones to local when budget running low
+### 3c. Budget tracking (Calcifer) ✅ (2026-03-12)
+- [x] Token/cost tracking per session in task state (`TaskResult.cost_usd`, auto-computed)
+- [x] Per-token pricing tables: Anthropic (Opus/Sonnet/Haiku), OpenAI (gpt-4o/mini, o3-mini), local ($0)
+- [x] `tj budget` command: --today/week/month/all/--tasks/--json
+- [x] Cloud vs local token breakdown, local savings estimate
+- [x] Budget routing advice when cloud spend is high
 
 ### 3d. Handoff continuity (both)
 - [ ] Context summary auto-generated when task completes (use LLM, short)
