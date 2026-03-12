@@ -20,6 +20,7 @@ export default defineConfig({
       { text: "Reference", link: "/reference/cli" },
       { text: "Protocol", link: "/protocol/overview" },
       { text: "Hardware", link: "/hardware/overview" },
+      { text: "Future", link: "/docs/future" },
       {
         text: "Links",
         items: [
@@ -111,6 +112,15 @@ export default defineConfig({
             { text: "RTX 3070 Ti", link: "/hardware/rtx-3070-ti" },
             { text: "RTX 4090", link: "/hardware/rtx-4090" },
             { text: "M2 / M3 Mac", link: "/hardware/m2-mac" },
+          ],
+        },
+      ],
+
+      "/docs/": [
+        {
+          text: "Research & Vision",
+          items: [
+            { text: "Future: Beyond Text", link: "/docs/future" },
           ],
         },
       ],
