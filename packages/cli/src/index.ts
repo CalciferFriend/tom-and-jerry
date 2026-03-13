@@ -24,6 +24,8 @@ import { logs } from "./commands/logs.ts";
 import { configShow, configGet, configSet, configPath } from "./commands/config.ts";
 import { hhTest } from "./commands/test.ts";
 import { upgrade } from "./commands/upgrade.ts";
+import { replay } from "./commands/replay.ts";
+import { cancel } from "./commands/cancel.ts";
 import { watch } from "./commands/watch.ts";
 import {
   scheduleAdd,
@@ -112,6 +114,48 @@ program
       notify: opts.notify,
     });
   });
+
+program
+  .command("replay")
+  .description("Re-send a previous task with the same objective (useful after failures or timeouts)")
+  .argument("<id>", "Task ID or prefix to replay (see `hh logs` for IDs)")
+  .option("--peer <name>", "Override the target peer")
+  .option("--wait", "Wait for the result before exiting")
+  .option("--wait-timeout <seconds>", "Max seconds to wait (default: 300)", "300")
+  .option("--no-webhook", "Disable result webhook server (polling only)")
+  .option("--notify <url>", "Webhook URL for task completion notification (Discord/Slack/generic)")
+  .option("--dry-run", "Show what would be sent without sending")
+  .option("--json", "Output replay plan as JSON (dry-run only)")
+  .action((id: string, opts: {
+    peer?: string;
+    wait?: boolean;
+    waitTimeout?: string;
+    webhook?: boolean;
+    notify?: string;
+    dryRun?: boolean;
+    json?: boolean;
+  }) =>
+    replay(id, {
+      peer: opts.peer,
+      wait: opts.wait,
+      waitTimeoutSeconds: opts.waitTimeout,
+      noWebhook: opts.webhook === false,
+      notify: opts.notify,
+      dryRun: opts.dryRun,
+      json: opts.json,
+    }),
+  );
+
+program
+  .command("cancel")
+  .description("Cancel a pending or running task (marks it as cancelled, unblocks hh logs / replay)")
+  .argument("[id]", "Task ID or prefix to cancel")
+  .option("--force", "Cancel even if the task is already in a terminal state")
+  .option("--all-pending", "Cancel every pending task at once")
+  .option("--json", "Machine-readable JSON output")
+  .action((id: string | undefined, opts: { force?: boolean; allPending?: boolean; json?: boolean }) =>
+    cancel(id, { force: opts.force, allPending: opts.allPending, json: opts.json }),
+  );
 
 program
   .command("result")

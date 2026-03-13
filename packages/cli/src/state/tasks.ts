@@ -22,7 +22,7 @@ import { join } from "node:path";
 
 const STATE_DIR = join(homedir(), ".his-and-hers", "state", "tasks");
 
-export type TaskStatus = "pending" | "running" | "completed" | "failed" | "timeout";
+export type TaskStatus = "pending" | "running" | "completed" | "failed" | "timeout" | "cancelled";
 
 export interface TaskState {
   id: string;
@@ -133,7 +133,7 @@ export async function pollTaskCompletion(
   while (Date.now() < deadline) {
     const state = await loadTaskState(id);
     if (!state) return null;
-    if (state.status === "completed" || state.status === "failed" || state.status === "timeout") {
+    if (state.status === "completed" || state.status === "failed" || state.status === "timeout" || state.status === "cancelled") {
       return state;
     }
     await new Promise((r) => setTimeout(r, pollIntervalMs));

@@ -552,8 +552,8 @@ describe("streaming round-trip (H1 server ↔ mock H2 client)", () => {
     const resultPayload: ResultWebhookPayload = {
       task_id: STREAM_TASK_ID,
       output: "Final complete output from H2",
-      tokens_in: 500,
-      tokens_out: 200,
+      success: true,
+      tokens_used: 700,
       duration_ms: 3_200,
     };
 
@@ -588,7 +588,7 @@ describe("streaming round-trip (H1 server ↔ mock H2 client)", () => {
 
     expect(streamedChunks).toEqual(["partial output..."]);
     expect(result.output).toBe("Final complete output from H2");
-    expect(result.tokens_in).toBe(500);
+    expect(result.tokens_used).toBe(700);
     expect(result.duration_ms).toBe(3_200);
   });
 });
@@ -601,14 +601,12 @@ describe("deliverNotification (webhook delivery)", () => {
     const ok = await deliverNotification(
       "http://127.0.0.1:1/webhook",
       {
-        task_id: "notif-test-1",
+        taskId: "notif-test-1",
         peer: "glados",
         task: "Generate report",
         output: "Report generated.",
-        tokens_in: 100,
-        tokens_out: 50,
-        duration_ms: 1_200,
-        cost_usd: 0.002,
+        durationMs: 1_200,
+        costUsd: 0.002,
       },
     );
     expect(ok).toBe(false);
@@ -620,7 +618,7 @@ describe("deliverNotification (webhook delivery)", () => {
     const ok = await deliverNotification(
       "https://discord.com/api/webhooks/123/abc",
       {
-        task_id: "discord-test",
+        taskId: "discord-test",
         peer: "glados",
         task: "test task",
         output: "done",

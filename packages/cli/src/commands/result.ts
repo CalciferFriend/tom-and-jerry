@@ -139,9 +139,35 @@ export async function result(taskId: string, output: string | undefined, opts: R
       p.log.info(`  Duration: ${(resultPayload.duration_ms / 1000).toFixed(1)}s`);
     }
 
+    // ── Phase 3d: Generate context summary before delivery ───────────────────
+    // Build the summary now so we can include it in the webhook payload (H1
+    // receives it inline) AND store it locally for multi-turn continuity.
+    let contextSummary: string | null = null;
+    try {
+      const peerName = config?.peer_node?.name ?? updated.to;
+      contextSummary = summarizeTask({
+        task_id: taskId,
+        objective: updated.objective,
+        output: resultPayload.output,
+        success: resultPayload.success,
+        error: resultPayload.error,
+        artifacts: resultPayload.artifacts,
+        tokens_used: resultPayload.tokens_used,
+        duration_ms: resultPayload.duration_ms,
+      });
+      await appendContextEntry(peerName, {
+        task_id: taskId,
+        summary: contextSummary,
+        created_at: new Date().toISOString(),
+      });
+    } catch {
+      // Context summary is best-effort; don't fail the result command if it errors
+    }
+
     // ── Phase 5d: Webhook delivery back to H1 ────────────────────────────────
     // If H1 included a webhook URL in the wake message, POST the result there
     // immediately so `hh send --wait` resolves without polling.
+    // context_summary is included so H1 can store it for the next outbound task.
     if (opts.webhookUrl) {
       const token = config?.this_node?.gateway?.gateway_token ?? "";
       if (!token) {
@@ -161,6 +187,7 @@ export async function result(taskId: string, output: string | undefined, opts: R
           tokens_used: resultPayload.tokens_used,
           duration_ms: resultPayload.duration_ms,
           cost_usd: resultPayload.cost_usd,
+          context_summary: contextSummary ?? undefined,
         });
         if (webhookResult.ok) {
           webhookS.stop(pc.green("  ✓ Result delivered to H1 via webhook."));
@@ -173,29 +200,6 @@ export async function result(taskId: string, output: string | undefined, opts: R
           );
         }
       }
-    }
-
-    // Generate and store a context summary for multi-turn handoff continuity.
-    // This summary will be forwarded as context_summary on the next outbound task.
-    try {
-      const peerName = config?.peer_node?.name ?? updated.to;
-      const summary = summarizeTask({
-        task_id: taskId,
-        objective: updated.objective,
-        output: resultPayload.output,
-        success: resultPayload.success,
-        error: resultPayload.error,
-        artifacts: resultPayload.artifacts,
-        tokens_used: resultPayload.tokens_used,
-        duration_ms: resultPayload.duration_ms,
-      });
-      await appendContextEntry(peerName, {
-        task_id: taskId,
-        summary,
-        created_at: new Date().toISOString(),
-      });
-    } catch {
-      // Context summary is best-effort; don't fail the result command if it errors
     }
   } catch (err) {
     p.log.error(`Failed to update task state: ${err}`);

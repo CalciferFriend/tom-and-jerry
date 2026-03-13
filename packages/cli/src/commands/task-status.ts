@@ -18,6 +18,7 @@ const STATUS_COLORS: Record<TaskStatus, (s: string) => string> = {
   completed: (s) => pc.green(s),
   failed:    (s) => pc.red(s),
   timeout:   (s) => pc.dim(s),
+  cancelled: (s) => pc.dim(pc.strikethrough(s)),
 };
 
 export async function taskStatus(idPrefix?: string) {

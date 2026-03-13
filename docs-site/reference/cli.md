@@ -197,3 +197,61 @@ Manually send a heartbeat to H1 (typically run automatically by H2's gateway).
 hh heartbeat
 hh heartbeat --peer h1-name
 ```
+
+---
+
+### `hh peers`
+
+List all configured peer nodes with cached capability info.
+
+```bash
+hh peers              # list with cached GPU/model/skill info
+hh peers --ping       # add live Tailscale reachability check
+hh peers --json
+```
+
+The primary peer is marked with ★. See [hh peers reference](/reference/peers) for full docs.
+
+---
+
+### `hh replay`
+
+Re-send a previous task by ID or prefix. Creates a new task ID — the original is untouched.
+
+```bash
+hh replay abc123            # replay by prefix
+hh replay abc123 --peer gpu # override the target peer
+hh replay abc123 --wait     # block until result arrives
+hh replay abc123 --dry-run  # preview without sending
+```
+
+See [hh replay reference](/reference/replay) for full docs.
+
+---
+
+### `hh cancel`
+
+Mark a pending or running task as cancelled.
+
+```bash
+hh cancel abc123            # cancel by ID prefix
+hh cancel abc123 --force    # cancel even if already terminal
+hh cancel --all-pending     # cancel every pending task
+hh cancel --json
+```
+
+See [hh cancel reference](/reference/cancel) for full docs.
+
+---
+
+### `hh upgrade`
+
+Check for newer versions of `his-and-hers` on npm.
+
+```bash
+hh upgrade              # interactive check with upgrade instructions
+hh upgrade --check      # exit 1 if upgrade available (CI-friendly)
+hh upgrade --json
+```
+
+See [hh upgrade reference](/reference/upgrade) for full docs.

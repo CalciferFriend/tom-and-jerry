@@ -1,0 +1,56 @@
+# `hh upgrade`
+
+Check for newer versions of `his-and-hers` on npm and print upgrade instructions if one is available.
+
+## Usage
+
+```bash
+hh upgrade
+hh upgrade --check
+hh upgrade --json
+```
+
+## Flags
+
+| Flag | Description |
+|------|-------------|
+| `--check` | Exit 0 if up to date, exit 1 if an upgrade is available (CI-friendly) |
+| `--json` | Machine-readable JSON output |
+
+## Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Already on the latest version (or `--check` confirms up to date) |
+| `1` | An upgrade is available (`--check` mode) |
+
+## Environment
+
+| Variable | Effect |
+|----------|--------|
+| `NO_UPDATE_NOTIFIER` | Set to any value to suppress update checks (follows standard convention) |
+
+## Examples
+
+```bash
+# Interactive check with upgrade instructions
+hh upgrade
+
+# Scripted check — useful in CI or cron
+hh upgrade --check && echo "up to date" || echo "upgrade available"
+
+# JSON output for automation
+hh upgrade --json
+# → { "current": "0.1.0", "latest": "0.2.0", "upgrade_available": true }
+```
+
+## Notes
+
+- Checks the public npm registry (`registry.npmjs.org`) — requires internet access.
+- Respects `NO_UPDATE_NOTIFIER` env var (same convention as `update-notifier`).
+- The upgrade command only checks; it never modifies your installation. Run the printed npm/pnpm command yourself.
+
+## See also
+
+- [Installation guide](/guide/install-linux) — initial setup
+- [`hh doctor`](/reference/doctor) — full health diagnostics

@@ -145,6 +145,14 @@
 - [x] --json for machine-readable piping
 - [x] --follow mode: live tail with 2s polling, highlights new/updated tasks
 
+### 4e. Task lifecycle commands (Calcifer) ✅ (2026-03-13)
+- [x] `hh replay <id>` — re-send previous task by ID prefix; new task ID, original untouched; --peer/--wait/--dry-run/--notify flags; 13 tests
+- [x] `hh cancel <id>` — mark pending/running task cancelled; --force/--all-pending flags; 14 tests
+- [x] `hh peers` — list all configured peers with cached GPU/Ollama/skill info; --ping for live check; --json
+- [x] `hh doctor` — comprehensive health diagnostics (local + per-peer); actionable remediation hints; --peer/--json flags
+- [x] `hh upgrade` — npm registry version check; --check (exit 1 if outdated, CI-friendly); --json; respects NO_UPDATE_NOTIFIER
+- [x] Reference docs added for all five commands; sidebar updated
+
 ### 4d. Discord community + showcase
 - [ ] Discord community for his-and-hers setups
 - [ ] Showcase: what are people building with it?

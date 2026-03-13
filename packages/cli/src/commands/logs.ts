@@ -51,6 +51,7 @@ function statusBadge(status: TaskStatus): string {
     case "pending":   return pc.yellow("⏳ pending");
     case "running":   return pc.cyan("⚡ running");
     case "timeout":   return pc.magenta("⏱ timeout");
+    case "cancelled": return pc.dim("⊘ cancel ");
     default:          return pc.dim("? unknown");
   }
 }
