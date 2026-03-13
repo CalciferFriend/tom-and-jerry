@@ -9,7 +9,10 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { HHSchedule, HHScheduleList } from "./schema.ts";
+import { HHScheduleList } from "./schema.ts";
+import type { HHSchedule } from "./schema.ts";
+
+export type { HHSchedule };
 
 function getBaseDir(): string {
   return join(homedir(), ".his-and-hers");
@@ -46,6 +49,7 @@ export interface AddScheduleInput {
   peer?: string;
   latent?: boolean;
   name?: string;
+  notify_webhook?: string;
 }
 
 /** Add a new schedule and return the created entry. */
@@ -58,6 +62,7 @@ export async function addSchedule(input: AddScheduleInput): Promise<HHSchedule> 
     peer: input.peer,
     latent: input.latent,
     name: input.name,
+    notify_webhook: input.notify_webhook,
     created_at: new Date().toISOString(),
     enabled: true,
   };
