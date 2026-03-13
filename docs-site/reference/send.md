@@ -24,6 +24,7 @@ hh send "<task>" [flags]
 | `--auto` | bool | false | Use capability-based routing to pick best peer |
 | `--context <text>` | string | auto | Override the context summary sent with the task |
 | `--shutdown-after` | bool | false | Tell H2 to shut down after completing this task |
+| `--notify <url>` | string | — | Webhook URL to notify on completion (Discord/Slack/generic) |
 | `--json` | bool | false | Output task ID, peer, status as JSON |
 | `--verbose` | bool | false | Show WOL steps, gateway calls, timing |
 
@@ -160,9 +161,38 @@ done
 
 ---
 
+## Live streaming
+
+When `--wait` is set, `hh send` automatically starts a streaming chunk-receiver
+on H1 before dispatching the task. H2's `hh watch` streams stdout chunks back
+in real-time so you see partial output as H2 works — no spinner, no silence.
+
+Streaming degrades silently if the server fails to bind. See the
+[streaming guide](/guide/streaming) for details.
+
+---
+
+## Webhook notifications (`--notify`)
+
+Deliver a completion ping to Discord, Slack, or any HTTP endpoint:
+
+```bash
+hh send "overnight training run" --notify https://discord.com/api/webhooks/...
+hh send "long task" --wait --notify https://hooks.slack.com/services/...
+```
+
+- **Discord** — rich embed with colour-coded status, peer, duration, cost
+- **Slack** — Block Kit message with the same fields
+- **Generic** — JSON `POST` with `event`, `task_id`, `success`, `output`, `peer`, `duration_ms`, `cost_usd`, `timestamp`
+
+Notification failures are soft-logged and never break the task.
+
+---
+
 ## See also
 
 - [Sending tasks guide](/guide/sending-tasks) — full walkthrough
+- [Live streaming & notifications](/guide/streaming) — streaming + webhook details
 - [hh logs](/reference/logs) — monitor task status
 - [hh wake](/reference/wake) — manually wake H2
 - [hh capabilities](/reference/capabilities) — understand routing decisions

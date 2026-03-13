@@ -50,8 +50,8 @@
 - [x] Timeout + retry logic
 - [x] `hh send --wait` polls for result via task state file
 - [x] H2: `hh result <id> <output>` — receive + store result back (code complete + 17 tests; GLaDOS pending real-machine test)
-- [ ] Streaming results (partial updates while H2 works) — Phase 3
-- [ ] `hh send "generate an image of X"` → wakes GLaDOS, runs diffusion, returns path — Phase 3
+- [x] Streaming results (partial updates while H2 works) ✅ (2026-03-13 GLaDOS) — stream-server.ts + stream-client.ts, wired in send.ts + watch.ts, 22 new tests
+- [ ] `hh send "generate an image of X"` → wakes GLaDOS, runs diffusion, returns path — Phase 4+
 
 ### 2e. `hh status` — live checks (Calcifer) ✅ (2026-03-11)
 - [x] Tailscale reachability ping
@@ -201,6 +201,20 @@
 - [x] Schedule store: ~/.his-and-hers/schedules.json
 - [x] Crontab installer/remover (system cron integration)
 - [x] Tests: store CRUD + crontab parser
+
+### 5g. Webhook notifications + streaming ✅ (2026-03-13 GLaDOS)
+- [x] `deliverNotification()` — Discord/Slack/generic webhook on task completion
+- [x] Rich Discord embed (colour-coded, peer/duration/cost fields)
+- [x] Slack Block Kit message
+- [x] Generic JSON payload fallback
+- [x] 20 tests covering all three flavours + truncation + error handling
+- [x] `--notify <url>` flag for `hh send` and `hh schedule add`
+- [x] `startStreamServer()` — H1-side SSE chunk receiver for live partial output
+- [x] `createChunkStreamer()` / `postChunk()` — H2-side streaming client
+- [x] Wired in `send.ts` (starts server, embeds URL in wake message, displays chunks)
+- [x] Wired in `watch.ts` (reads HH_STREAM_URL/HH_STREAM_TOKEN env, streams stdout)
+- [x] 22 tests for stream server/client; integration test in roundtrip.integration.test.ts
+- [x] Docs: streaming guide + updated send reference (2026-03-13 Calcifer)
 
 ---
 
