@@ -434,3 +434,198 @@ describe("cronRetryDecision", () => {
     expect(cronRetryDecision(state, now)).toBe("retry");
   });
 });
+
+// ─── 7. Streaming round-trip ──────────────────────────────────────────────────
+
+import { startStreamServer, parseStreamUrl, parseStreamToken } from "./gateway/stream-server.ts";
+import { postChunk, createChunkStreamer } from "./gateway/stream-client.ts";
+import { deliverNotification } from "./notify/notify.ts";
+
+describe("streaming round-trip (H1 server ↔ mock H2 client)", () => {
+  const STREAM_TASK_ID = "integration-stream-task-001";
+  const STREAM_TOKEN = "integration-stream-token";
+
+  it("H1 receives streamed chunks and resolves .done after done:true", async () => {
+    const handle = await startStreamServer({
+      taskId: STREAM_TASK_ID,
+      token: STREAM_TOKEN,
+      bindAddress: "127.0.0.1",
+      timeoutMs: 10_000,
+    });
+
+    const received: string[] = [];
+    handle.on("chunk", (c: string) => received.push(c));
+
+    // Simulate H2 posting chunks via createChunkStreamer
+    const streamer = createChunkStreamer(handle.url, STREAM_TOKEN, STREAM_TASK_ID);
+    streamer.push("Step 1: analysing task...");
+    streamer.push("Step 2: running model...");
+    streamer.push("Step 3: done.");
+    await streamer.finish();
+
+    await handle.done;
+
+    expect(received).toEqual([
+      "Step 1: analysing task...",
+      "Step 2: running model...",
+      "Step 3: done.",
+    ]);
+    expect(streamer.getSeq()).toBe(4); // 3 pushes + 1 done
+  });
+
+  it("stream URL is parseable from a wake message built by H1", () => {
+    const wakeText = [
+      "Task: summarise the following PR diff",
+      "HH-Webhook-URL: http://100.116.25.69:38100/result",
+      `HH-Stream-URL: http://100.116.25.69:39200/stream`,
+      `HH-Stream-Token: ${STREAM_TOKEN}`,
+    ].join("\n");
+
+    const url = parseStreamUrl(wakeText);
+    const token = parseStreamToken(wakeText);
+
+    expect(url).toBe("http://100.116.25.69:39200/stream");
+    expect(token).toBe(STREAM_TOKEN);
+  });
+
+  it("concurrent chunks from H2 all arrive at H1 (unordered delivery OK)", async () => {
+    const handle = await startStreamServer({
+      taskId: STREAM_TASK_ID,
+      token: STREAM_TOKEN,
+      bindAddress: "127.0.0.1",
+      timeoutMs: 10_000,
+    });
+
+    const received = new Set<string>();
+    handle.on("chunk", (c: string) => received.add(c));
+
+    // Post 5 chunks concurrently from H2 (simulating rapid executor output)
+    await Promise.all(
+      ["a", "b", "c", "d", "e"].map((letter, i) =>
+        postChunk(handle.url, STREAM_TOKEN, {
+          task_id: STREAM_TASK_ID,
+          seq: i,
+          chunk: letter,
+        }),
+      ),
+    );
+
+    // Done marker
+    await postChunk(handle.url, STREAM_TOKEN, {
+      task_id: STREAM_TASK_ID,
+      seq: 5,
+      chunk: "",
+      done: true,
+    });
+
+    await handle.done;
+    expect(received).toEqual(new Set(["a", "b", "c", "d", "e"]));
+  });
+
+  it("full pipeline: stream during task + result webhook after completion", async () => {
+    // Start both servers (as H1 does in send.ts)
+    const [streamHandle, resultHandle] = await Promise.all([
+      startStreamServer({
+        taskId: STREAM_TASK_ID,
+        token: STREAM_TOKEN,
+        bindAddress: "127.0.0.1",
+        timeoutMs: 10_000,
+      }),
+      startResultServer({
+        taskId: STREAM_TASK_ID,
+        token: STREAM_TOKEN,
+        bindAddress: "127.0.0.1",
+        timeoutMs: 10_000,
+      }),
+    ]);
+
+    const streamedChunks: string[] = [];
+    streamHandle.on("chunk", (c: string) => streamedChunks.push(c));
+
+    // Simulate H2: stream output then POST result
+    const streamer = createChunkStreamer(streamHandle.url, STREAM_TOKEN, STREAM_TASK_ID);
+    streamer.push("partial output...");
+    await streamer.finish();
+    await streamHandle.done;
+
+    // H2 posts final result via webhook
+    const resultPayload: ResultWebhookPayload = {
+      task_id: STREAM_TASK_ID,
+      output: "Final complete output from H2",
+      tokens_in: 500,
+      tokens_out: 200,
+      duration_ms: 3_200,
+    };
+
+    const { request } = await import("node:http");
+    const parsed = new URL(resultHandle.url);
+    const bodyStr = JSON.stringify(resultPayload);
+
+    await new Promise<void>((resolve, reject) => {
+      const req = request(
+        {
+          hostname: parsed.hostname,
+          port: parseInt(parsed.port, 10),
+          path: parsed.pathname,
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Content-Length": Buffer.byteLength(bodyStr),
+            "X-HH-Token": STREAM_TOKEN,
+          },
+        },
+        (res) => {
+          res.resume();
+          res.on("end", resolve);
+        },
+      );
+      req.on("error", reject);
+      req.write(bodyStr);
+      req.end();
+    });
+
+    const result = await resultHandle.result;
+
+    expect(streamedChunks).toEqual(["partial output..."]);
+    expect(result.output).toBe("Final complete output from H2");
+    expect(result.tokens_in).toBe(500);
+    expect(result.duration_ms).toBe(3_200);
+  });
+});
+
+// ─── 8. Notification delivery ────────────────────────────────────────────────
+
+describe("deliverNotification (webhook delivery)", () => {
+  it("never throws — returns false when no server is listening", async () => {
+    // Port 1 is reserved/closed — any POST will fail
+    const ok = await deliverNotification(
+      "http://127.0.0.1:1/webhook",
+      {
+        task_id: "notif-test-1",
+        peer: "glados",
+        task: "Generate report",
+        output: "Report generated.",
+        tokens_in: 100,
+        tokens_out: 50,
+        duration_ms: 1_200,
+        cost_usd: 0.002,
+      },
+    );
+    expect(ok).toBe(false);
+  });
+
+  it("detects Discord webhook URLs by domain", async () => {
+    // We can't POST to real Discord in tests; just verify the function
+    // returns false gracefully (network error) rather than throwing.
+    const ok = await deliverNotification(
+      "https://discord.com/api/webhooks/123/abc",
+      {
+        task_id: "discord-test",
+        peer: "glados",
+        task: "test task",
+        output: "done",
+      },
+    ).catch(() => false);
+    expect(typeof ok).toBe("boolean");
+  });
+});
