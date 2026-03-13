@@ -98,7 +98,8 @@ const RETRY_STATE_DIR = join(homedir(), ".his-and-hers", "retry");
 
 export type RetryStatus = "pending" | "failed" | "completed";
 
-export interface RetryState {
+/** @internal disk-persisted retry state (snake_case, ISO timestamps) */
+export interface RetryStateDisk {
   task_id: string;
   status: RetryStatus;
   attempts: number;
@@ -106,6 +107,21 @@ export interface RetryState {
   last_error?: string;
   next_retry_at?: string;
 }
+
+/** Cron-friendly retry state (camelCase, numeric timestamps for easy comparison). */
+export interface RetryState {
+  taskId: string;
+  status: "pending" | "succeeded" | "exhausted" | "failed";
+  attempts: number;
+  /** Unix ms of last attempt */
+  lastAttemptAt: number;
+  /** Unix ms when next retry is allowed, or null if immediate/not applicable */
+  nextRetryAt: number | null;
+  lastError?: string;
+}
+
+/** @deprecated Use RetryState (camelCase) */
+export type { RetryStateDisk as LegacyRetryState };
 
 function retryStatePath(taskId: string): string {
   return join(RETRY_STATE_DIR, `${taskId}.json`);
@@ -120,35 +136,38 @@ async function ensureRetryDir(): Promise<void> {
  *
  * Use before sending to avoid duplicate sends from cron:
  * ```
- * const existing = await getRetryState(taskId);
+ * const existing = await getRetryStateDisk(taskId);
  * if (existing?.status === "pending") {
  *   // already in flight — skip
  * }
  * ```
  */
-export async function getRetryState(taskId: string): Promise<RetryState | null> {
+export async function getRetryStateDisk(taskId: string): Promise<RetryStateDisk | null> {
   const path = retryStatePath(taskId);
   if (!existsSync(path)) return null;
   try {
-    return JSON.parse(await readFile(path, "utf-8")) as RetryState;
+    return JSON.parse(await readFile(path, "utf-8")) as RetryStateDisk;
   } catch {
     return null;
   }
 }
 
-/** Create or update retry state for a task. */
+/** @deprecated Use getRetryStateDisk */
+export const getRetryState = getRetryStateDisk;
+
+/** Create or update retry state for a task (disk-persisted). */
 export async function setRetryState(
   taskId: string,
-  patch: Partial<Omit<RetryState, "task_id">>,
-): Promise<RetryState> {
+  patch: Partial<Omit<RetryStateDisk, "task_id">>,
+): Promise<RetryStateDisk> {
   await ensureRetryDir();
-  const existing = (await getRetryState(taskId)) ?? {
+  const existing = (await getRetryStateDisk(taskId)) ?? {
     task_id: taskId,
     status: "pending" as RetryStatus,
     attempts: 0,
     last_attempt_at: new Date().toISOString(),
   };
-  const updated: RetryState = {
+  const updated: RetryStateDisk = {
     ...existing,
     ...patch,
     task_id: taskId,
@@ -176,31 +195,71 @@ export function nextRetryAt(attempts: number, baseDelayMs = 2_000, maxDelayMs = 
 }
 
 /**
- * Determine if a task is safe to retry from a cron context.
+ * Determine if a task is safe to retry from a cron context (sync, in-memory).
+ *
+ * Takes an in-memory RetryState and a `now` timestamp.
+ * Use `cronRetryDecision(taskId)` (async) for the disk-reading version.
  *
  * Returns:
- *   - "send"    — no state exists, proceed
- *   - "skip"    — already in flight (pending) or already completed
- *   - "retry"   — previous attempt failed, next_retry_at has passed
+ *   - "send"    — no prior state, proceed with first send
+ *   - "skip"    — already completed (succeeded) or exhausted all retries
+ *   - "retry"   — previous attempt failed, nextRetryAt has passed
+ *   - "backoff" — failed but still within the backoff window
+ */
+export function cronRetryDecisionSync(
+  state: RetryState | undefined,
+  now: number = Date.now(),
+): "send" | "skip" | "retry" | "backoff" {
+  if (!state) return "send";
+
+  switch (state.status) {
+    case "succeeded":
+    case "exhausted":
+      return "skip";
+    case "pending":
+    case "failed": {
+      if (state.nextRetryAt === null) return "retry";
+      return now >= state.nextRetryAt ? "retry" : "backoff";
+    }
+    default:
+      return "send";
+  }
+}
+
+/**
+ * Determine if a task is safe to retry from a cron context.
+ *
+ * Async version — loads state from disk by taskId and returns the decision.
+ *
+ * Returns:
+ *   - "send"    — no prior state, proceed with first send
+ *   - "skip"    — task is in-flight (pending) or already completed/exhausted
+ *   - "retry"   — previous attempt failed and next_retry_at has passed
  *   - "backoff" — failed but still within the backoff window
  */
 export async function cronRetryDecision(
   taskId: string,
 ): Promise<"send" | "skip" | "retry" | "backoff"> {
-  const state = await getRetryState(taskId);
-  if (!state) return "send";
+  const disk = await getRetryStateDisk(taskId);
+  if (!disk) return "send";
 
-  switch (state.status) {
-    case "completed":
-      return "skip";
-    case "pending":
-      return "skip"; // already in flight
-    case "failed": {
-      if (!state.next_retry_at) return "retry";
-      const nextRetry = new Date(state.next_retry_at).getTime();
-      return Date.now() >= nextRetry ? "retry" : "backoff";
-    }
-    default:
-      return "send";
+  // Pending = task is currently in-flight; skip to avoid duplicate sends.
+  // Completed = task finished successfully; nothing to do.
+  if (disk.status === "pending" || disk.status === "completed") return "skip";
+
+  // Failed — check if it's time to retry.
+  if (disk.status === "failed") {
+    const nextAt = disk.next_retry_at ? new Date(disk.next_retry_at).getTime() : null;
+    if (nextAt === null) return "retry";
+    return Date.now() >= nextAt ? "retry" : "backoff";
   }
+
+  return "send";
+}
+
+/** @deprecated Use cronRetryDecision (async) or cronRetryDecisionSync (sync/in-memory). */
+export async function cronRetryDecisionAsync(
+  taskId: string,
+): Promise<"send" | "skip" | "retry" | "backoff"> {
+  return cronRetryDecision(taskId);
 }

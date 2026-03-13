@@ -115,7 +115,7 @@ function capabilityRouting(
   // Image generation
   if (
     peer.skills.includes("image-gen") &&
-    /\b(image|photo|picture|art|draw|paint|generat|diffus|stable)\b/.test(lower)
+    /\b(image|photo|picture|art|draw|paint|generat|diffus|stable)/.test(lower)
   ) {
     return {
       hint: "h2-local",

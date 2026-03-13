@@ -123,7 +123,7 @@ export async function upgrade(opts: UpgradeOptions = {}): Promise<void> {
     const error = err instanceof Error ? err.message : String(err);
     if (opts.json) {
       process.stdout.write(
-        JSON.stringify({ currentVersion, latestVersion: null, upToDate: null, upgradeAvailable: null, error } satisfies Partial<UpgradeResult> & { latestVersion: null; upToDate: null; upgradeAvailable: null }) + "\n"
+        JSON.stringify({ currentVersion, latestVersion: null, upToDate: null, upgradeAvailable: null, error } as unknown as Partial<UpgradeResult> & { error: string }) + "\n"
       );
     } else {
       p.log.warn(`Could not reach npm registry: ${error}`);

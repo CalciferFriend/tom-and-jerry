@@ -80,8 +80,10 @@ export {
   clearRetryState,
   nextRetryAt,
   cronRetryDecision,
+  cronRetryDecisionSync,
+  cronRetryDecisionAsync,
 } from "./retry.ts";
-export type { RetryOptions, RetryState, RetryStatus } from "./retry.ts";
+export type { RetryOptions, RetryState, RetryStateDisk, RetryStatus } from "./retry.ts";
 
 // Routing (capability-aware + heuristic fallback)
 export { suggestRouting, routeTask } from "./routing.ts";
@@ -101,6 +103,7 @@ export {
   appendContextEntry,
   loadContextEntries,
   buildContextSummary,
+  loadContextSummary,
   clearContextEntries,
   contextEntryCount,
   summarizeTask,

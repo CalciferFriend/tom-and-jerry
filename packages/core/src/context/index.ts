@@ -2,6 +2,7 @@ export {
   appendContextEntry,
   loadContextEntries,
   buildContextSummary,
+  loadContextSummary,
   clearContextEntries,
   contextEntryCount,
 } from "./store.ts";

@@ -59,8 +59,15 @@ export interface ResultServerHandle {
   /** Actual port the server is listening on */
   port: number;
   /**
-   * Resolves when a valid result arrives (or returns null on timeout / server error).
+   * Resolves when a valid result arrives; rejects on timeout or server error.
    * Closes the server automatically.
+   *
+   * Prefer `result` for direct `await` or `Promise.all` usage.
+   */
+  result: Promise<ResultWebhookPayload>;
+  /**
+   * @deprecated Use the `result` Promise property directly.
+   * Resolves when a valid result arrives (returns null on timeout/error).
    */
   waitForResult: () => Promise<ResultWebhookPayload | null>;
   /** Force-close the server without waiting for a result */
@@ -90,7 +97,8 @@ export async function startResultServer(opts: ResultServerOptions): Promise<Resu
   } = opts;
 
   return new Promise((resolveHandle, rejectHandle) => {
-    let resultResolve: ((payload: ResultWebhookPayload | null) => void) | null = null;
+    let resultResolve: ((payload: ResultWebhookPayload) => void) | null = null;
+    let resultReject: ((err: Error) => void) | null = null;
     let serverTimer: ReturnType<typeof setTimeout> | null = null;
     let settled = false;
 
@@ -102,7 +110,11 @@ export async function startResultServer(opts: ResultServerOptions): Promise<Resu
         serverTimer = null;
       }
       server.close();
-      resultResolve?.(payload);
+      if (payload) {
+        resultResolve?.(payload);
+      } else {
+        resultReject?.(new Error("Result server timed out waiting for H2 response"));
+      }
     };
 
     const server = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -113,8 +125,13 @@ export async function startResultServer(opts: ResultServerOptions): Promise<Resu
         return;
       }
 
-      // Token authentication
-      const incoming = req.headers["x-hh-token"];
+      // Token authentication — accept X-HH-Token header or Authorization: Bearer <token>
+      const hhToken = req.headers["x-hh-token"];
+      const bearerHeader = req.headers["authorization"];
+      const bearerToken = typeof bearerHeader === "string" && bearerHeader.startsWith("Bearer ")
+        ? bearerHeader.slice(7)
+        : null;
+      const incoming = hhToken ?? bearerToken;
       if (!incoming || incoming !== token) {
         res.writeHead(401, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "unauthorized" }));
@@ -134,7 +151,7 @@ export async function startResultServer(opts: ResultServerOptions): Promise<Resu
           return;
         }
 
-        // Task ID guard — reject stale or wrong deliveries
+        // Task ID guard — reject stale or wrong deliveries (409 Conflict)
         if (payload.task_id !== taskId) {
           res.writeHead(409, { "Content-Type": "application/json" });
           res.end(
@@ -172,15 +189,26 @@ export async function startResultServer(opts: ResultServerOptions): Promise<Resu
       // Start the global timeout
       serverTimer = setTimeout(() => settle(null), timeoutMs);
 
+      // Create the result Promise up-front so it can be awaited at any time
+      const resultPromise = new Promise<ResultWebhookPayload>((res, rej) => {
+        resultResolve = res;
+        resultReject = rej;
+        // If already settled (timeout race), reject immediately
+        if (settled) rej(new Error("Result server timed out waiting for H2 response"));
+      });
+      // Suppress unhandled-rejection noise: callers using waitForResult() or close()
+      // without awaiting `result` directly would otherwise trigger Node's unhandled
+      // rejection handler. waitForResult() already swallows the error and returns null.
+      resultPromise.catch(() => undefined);
+
       const handle: ResultServerHandle = {
         url: `${url}/result`,
         port: actualPort,
-        waitForResult: () =>
-          new Promise<ResultWebhookPayload | null>((res) => {
-            resultResolve = res;
-            // If already settled (timeout race), resolve immediately
-            if (settled) res(null);
-          }),
+        result: resultPromise,
+        waitForResult: () => resultPromise.then(
+          (payload) => payload,
+          () => null,
+        ),
         close: () => settle(null),
       };
 

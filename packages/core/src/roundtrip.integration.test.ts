@@ -31,8 +31,9 @@ import {
 } from "./protocol/index.ts";
 import { startResultServer, type ResultWebhookPayload } from "./gateway/result-server.ts";
 import { routeTask } from "./routing.ts";
-import { cronRetryDecision, type RetryState } from "./retry.ts";
+import { cronRetryDecisionSync as cronRetryDecision, type RetryState } from "./retry.ts";
 import { buildContextSummary } from "./context/store.ts";
+import type { HHSkillTag } from "./capabilities/registry.schema.ts";
 
 // ─── HTTP helper ──────────────────────────────────────────────────────────────
 
@@ -241,7 +242,7 @@ describe("Round-trip: H1 webhook server ↔ H2 POST", () => {
       { Authorization: `Bearer ${TOKEN}` },
     );
 
-    expect(wrongIdPost.status).toBe(400);
+    expect(wrongIdPost.status).toBe(409);
     handle.close();
   }, 10_000);
 
@@ -290,15 +291,18 @@ describe("routeTask: heuristic routing", () => {
 describe("routeTask: capability-aware routing", () => {
   const baseCaps = {
     node: "h2",
-    os: "windows" as const,
+    platform: "windows" as const,
     arch: "x64",
+    version: "0.1.0",
+    reported_at: new Date().toISOString(),
+    wol_enabled: false,
     gpu: { available: true, name: "RTX 3070 Ti", backend: "cuda" as const, vram_gb: 8 },
-    ollama: { running: true, models: ["llama3.2", "codellama"] },
+    ollama: { running: true, base_url: "http://localhost:11434", models: ["llama3.2", "codellama"] },
     lmstudio: { running: false, models: [] },
     comfyui: { running: false, port: null },
     stable_diffusion: { running: false, port: null },
     whisper: { available: false, path: null },
-    skills: ["image-gen", "transcription"] as string[],
+    skills: ["image-gen", "transcription"] as HHSkillTag[],
     free_disk_gb: 100,
     ram_gb: 32,
     last_scan: new Date().toISOString(),
@@ -306,7 +310,7 @@ describe("routeTask: capability-aware routing", () => {
     latent_codecs: [] as string[],
     kv_compatible_models: [] as string[],
     tags: [] as string[],
-    notes: null,
+    notes: undefined,
   };
 
   it("routes image task to h2-local when peer has image-gen skill", () => {
@@ -328,8 +332,8 @@ describe("routeTask: capability-aware routing", () => {
   it("cloud for weather check even with capable h2", () => {
     const d = routeTask("What is the weather today", {
       ...baseCaps,
-      skills: [],
-      ollama: { running: false, models: [] },
+      skills: [] as HHSkillTag[],
+      ollama: { running: false, base_url: "http://localhost:11434", models: [] },
     });
     expect(d.hint).toBe("cloud");
   });

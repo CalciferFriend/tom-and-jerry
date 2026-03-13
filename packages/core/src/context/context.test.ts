@@ -3,7 +3,7 @@ import { summarizeTask } from "./summarize.ts";
 import {
   appendContextEntry,
   loadContextEntries,
-  buildContextSummary,
+  loadContextSummary as buildContextSummary,
   clearContextEntries,
   contextEntryCount,
 } from "./store.ts";

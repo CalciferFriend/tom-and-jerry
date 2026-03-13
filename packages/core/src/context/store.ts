@@ -70,8 +70,11 @@ export async function loadContextEntries(peerName: string): Promise<ContextEntry
  * Returns null if there are no stored entries (first task — no prior context).
  *
  * The returned string is suitable for `HHTaskMessage.context_summary`.
+ *
+ * @deprecated Use `buildContextSummary(task, result)` for on-the-fly summaries,
+ *   or `loadContextSummary(peerName, limit)` to read from stored peer history.
  */
-export async function buildContextSummary(
+export async function loadContextSummary(
   peerName: string,
   limit = 3,
 ): Promise<string | null> {
@@ -81,6 +84,37 @@ export async function buildContextSummary(
   const recent = entries.slice(-limit);
   const lines = recent.map((e, i) => `[${i + 1}] ${e.summary}`);
   return `Recent task context (${recent.length} task${recent.length === 1 ? "" : "s"}):\n${lines.join("\n")}`;
+}
+
+/**
+ * Generate a one-paragraph plain-text summary from a task description and its result.
+ *
+ * This is a pure synchronous helper — no disk I/O, no async.
+ * Use it to build a `ContextEntry.summary` before calling `appendContextEntry()`.
+ *
+ * @param task   - The original task description sent to H2
+ * @param result - The output/result returned by H2 (may be empty)
+ * @returns A compact summary string suitable for `HHTaskMessage.context_summary`
+ *
+ * @example
+ * const summary = buildContextSummary(
+ *   "Generate a Python script to scrape product prices",
+ *   "Done. Script saved to /tmp/scraper.py — uses httpx and BeautifulSoup.",
+ * );
+ */
+export function buildContextSummary(task: string, result: string): string {
+  const MAX_TASK = 200;
+  const MAX_RESULT = 500;
+
+  const truncate = (s: string, max: number) =>
+    s.length > max ? s.slice(0, max).trimEnd() + "…" : s;
+
+  const shortTask = truncate(task.trim(), MAX_TASK);
+  const shortResult = result.trim()
+    ? truncate(result.trim(), MAX_RESULT)
+    : "(no output)";
+
+  return `Task: ${shortTask}\nResult: ${shortResult}`;
 }
 
 /**

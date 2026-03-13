@@ -30,12 +30,12 @@ import {
   wakeAndWait,
   suggestRouting,
   createTaskMessage,
-  buildContextSummary,
+  loadContextSummary,
   startResultServer,
   withRetry,
   setRetryState,
   clearRetryState,
-  cronRetryDecision,
+  cronRetryDecisionAsync,
   type ResultWebhookPayload,
 } from "@his-and-hers/core";
 import { createTaskState, pollTaskCompletion, updateTaskState } from "../state/tasks.ts";
@@ -239,7 +239,7 @@ export async function send(task: string, opts: SendOptions = {}) {
   gwS.stop(pc.green("✓ Gateway ready"));
 
   // Step 3: build HHTaskMessage (attach context summary for multi-turn continuity)
-  const contextSummary = await buildContextSummary(peer.name, 3).catch(() => null);
+  const contextSummary = await loadContextSummary(peer.name, 3).catch(() => null);
   if (contextSummary) {
     p.log.info(pc.dim(`Context: ${contextSummary.split("\n")[0]}`));
   }
@@ -250,7 +250,7 @@ export async function send(task: string, opts: SendOptions = {}) {
 
   // ─── Phase 5e: Cron duplicate-send guard ────────────────────────────────────
   if (!opts.force) {
-    const decision = await cronRetryDecision(msg.id).catch(() => "send" as const);
+    const decision = await cronRetryDecisionAsync(msg.id).catch(() => "send" as const);
     if (decision === "skip") {
       p.log.warn(`Task ${pc.dim(msg.id.slice(0, 8))} is already in flight or completed — skipping.`);
       p.log.info(pc.dim(`Use --force to send anyway.`));

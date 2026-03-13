@@ -196,24 +196,65 @@ export function isLatentMessage(msg: HHMessage): msg is HHLatentMessage {
 
 // ─── Factory helpers ──────────────────────────────────────────────────────────
 
-/** Build a task message with defaults filled */
+type TaskMessageOpts = Partial<Pick<HHTaskMessage, "turn" | "context_summary" | "budget_remaining" | "wake_required">>;
+type ResultMessageOpts = Partial<Pick<HHResultMessage, "turn" | "done" | "context_summary">>;
+
+/** Flat-object form for createTaskMessage */
+type CreateTaskMessageFlat = {
+  from: string;
+  to: string;
+  objective: string;
+  context?: string;
+  constraints?: string[];
+  expected_output?: string;
+  timeout_seconds?: number;
+} & TaskMessageOpts;
+
+/** Flat-object form for createResultMessage */
+type CreateResultMessageFlat = {
+  from: string;
+  to: string;
+  task_id: string;
+  output: string;
+  success: boolean;
+  error?: string;
+  artifacts?: string[];
+  tokens_used?: number;
+  duration_ms?: number;
+} & ResultMessageOpts;
+
+/** Build a task message with defaults filled (positional or flat-object form) */
+export function createTaskMessage(from: string, to: string, payload: HHTaskPayload, opts?: TaskMessageOpts): HHTaskMessage;
+export function createTaskMessage(opts: CreateTaskMessageFlat): HHTaskMessage;
 export function createTaskMessage(
-  from: string,
-  to: string,
-  payload: HHTaskPayload,
-  opts?: Partial<Pick<HHTaskMessage, "turn" | "context_summary" | "budget_remaining" | "wake_required">>,
+  fromOrOpts: string | CreateTaskMessageFlat,
+  to?: string,
+  payload?: HHTaskPayload,
+  opts?: TaskMessageOpts,
 ): HHTaskMessage {
-  return HHTaskMessage.parse({ from, to, type: "task", payload, ...opts });
+  if (typeof fromOrOpts === "object") {
+    const { from, to: toVal, objective, context, constraints, expected_output, timeout_seconds, ...msgOpts } = fromOrOpts;
+    const p: HHTaskPayload = HHTaskPayload.parse({ objective, context, constraints: constraints ?? [], expected_output, timeout_seconds });
+    return HHTaskMessage.parse({ from, to: toVal, type: "task", payload: p, ...msgOpts });
+  }
+  return HHTaskMessage.parse({ from: fromOrOpts, to, type: "task", payload, ...opts });
 }
 
-/** Build a result message with defaults filled */
+/** Build a result message with defaults filled (positional or flat-object form) */
+export function createResultMessage(from: string, to: string, payload: HHResultPayload, opts?: ResultMessageOpts): HHResultMessage;
+export function createResultMessage(opts: CreateResultMessageFlat): HHResultMessage;
 export function createResultMessage(
-  from: string,
-  to: string,
-  payload: HHResultPayload,
-  opts?: Partial<Pick<HHResultMessage, "turn" | "done" | "context_summary">>,
+  fromOrOpts: string | CreateResultMessageFlat,
+  to?: string,
+  payload?: HHResultPayload,
+  opts?: ResultMessageOpts,
 ): HHResultMessage {
-  return HHResultMessage.parse({ from, to, type: "result", done: true, payload, ...opts });
+  if (typeof fromOrOpts === "object") {
+    const { from, to: toVal, task_id, output, success, error, artifacts, tokens_used, duration_ms, ...msgOpts } = fromOrOpts;
+    const p: HHResultPayload = HHResultPayload.parse({ task_id, output, success, error, artifacts, tokens_used, duration_ms });
+    return HHResultMessage.parse({ from, to: toVal, type: "result", done: true, payload: p, ...msgOpts });
+  }
+  return HHResultMessage.parse({ from: fromOrOpts, to, type: "result", done: true, payload, ...opts });
 }
 
 /** Build a heartbeat message */

@@ -63,6 +63,8 @@ export const PeerNodeConfig = NodeConfig.extend({
   wol_broadcast: z.string().optional(),
 });
 
+export type PeerNodeConfig = z.infer<typeof PeerNodeConfig>;
+
 export const PairState = z.object({
   established_at: z.string().datetime(),
   pairing_code_hash: z.string(),
