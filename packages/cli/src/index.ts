@@ -50,6 +50,7 @@ import {
   templateRun,
   templateRemove,
 } from "./commands/template.ts";
+import { web } from "./commands/web.ts";
 
 const _require = createRequire(import.meta.url);
 const { version: _hhVersion } = _require("../package.json") as { version: string };
@@ -592,5 +593,13 @@ templateCmd
   .description("Remove a saved template by name or id prefix")
   .option("--force", "Skip confirmation prompt")
   .action((name: string, opts: { force?: boolean }) => templateRemove(name, opts));
+
+// ── hh web ────────────────────────────────────────────────────────────────────
+program
+  .command("web")
+  .description("Launch the local web dashboard (live task feed, peer status, send form)")
+  .option("--port <port>", "Port to listen on (default: 3847)")
+  .option("--no-open", "Do not automatically open the browser")
+  .action((opts: { port?: string; open?: boolean }) => web(opts));
 
 program.parseAsync();

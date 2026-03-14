@@ -420,3 +420,47 @@ hh completion                      # auto-detect current shell
 ```
 
 See [hh completion reference](/reference/completion) for full docs.
+
+---
+
+### `hh web`
+
+Launch a local web dashboard. Serves a single-page app with live task feed,
+peer status cards, budget summary, and a send-task form.
+
+```bash
+hh web                             # start on port 3847, auto-open browser
+hh web --port 8080 --no-open       # custom port, headless
+```
+
+See [hh web reference](/reference/web) for full docs.
+
+---
+
+## Programmatic API
+
+### `@his-and-hers/sdk`
+
+The `@his-and-hers/sdk` package exposes the same capabilities as the CLI as a
+typed Node.js/TypeScript API — no subprocess spawning, no stdout parsing.
+
+```ts
+import { HH } from "@his-and-hers/sdk";
+
+const hh = new HH();
+
+// Fire-and-forget
+const { id } = await hh.send("Run the nightly data sync");
+
+// Wait for result
+const result = await hh.send("Generate coverage report", { wait: true });
+console.log(result.output);
+
+// Check peer status
+const status = await hh.status();
+console.log(status.online, status.latencyMs + "ms");
+```
+
+Install: `npm install @his-and-hers/sdk`
+
+See [@his-and-hers/sdk reference](/reference/sdk) for the full API.

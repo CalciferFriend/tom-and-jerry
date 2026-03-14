@@ -315,6 +315,18 @@
 - [x] Tests: 33 tests (store.test.ts) covering all CRUD + substitution + edge cases; bug fix: malformed JSON test mkdir
 - [x] `reference/template.md` docs page + sidebar wired + `reference/cli.md` overview section
 
+### 5o. `@his-and-hers/sdk` — programmatic API (Calcifer) ✅ (2026-03-14)
+- [x] `HH` class with `send()`, `status()`, `ping()`, `peers()`, `tasks()`, `getTask()`, `waitFor()`, `config()`
+- [x] `createHH()` factory alias
+- [x] `SDKConfig`, `SDKPeerConfig`, `SDKNodeConfig` types (minimal subset — no CLI dep)
+- [x] Config reader: `loadConfig()` reads `~/.his-and-hers/hh.json`, returns `SDKConfig | null`
+- [x] State reader/writer: `createTaskState`, `loadTaskState`, `listTaskStates`, `updateTaskState`, `pollTaskCompletion`
+- [x] Full type definitions in `types.ts` (SendOptions, SendResult, StatusResult, PeerInfo, PingOptions, PingResult, TaskSummary, TasksOptions, HHOptions)
+- [x] `routingHint` propagated in wake text (`routing_hint=<hint>` line — test-verified)
+- [x] `config.ts` mock added to test suite (was unmocked, `vi.mocked(loadConfig)` failed)
+- [x] 37 tests (all passing); total suite: **640** tests (34 files, all passing)
+- [x] `reference/sdk.md` docs page + VitePress sidebar "SDK" section + `reference/cli.md` "Programmatic API" section
+
 ---
 
 ## Phase 6 — Latent Communication (Experimental) 🔬

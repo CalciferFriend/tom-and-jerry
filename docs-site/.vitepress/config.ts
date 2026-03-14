@@ -115,6 +115,13 @@ export default defineConfig({
             { text: "hh export", link: "/reference/export" },
             { text: "hh chat", link: "/reference/chat" },
             { text: "hh completion", link: "/reference/completion" },
+            { text: "hh web", link: "/reference/web" },
+          ],
+        },
+        {
+          text: "SDK",
+          items: [
+            { text: "@his-and-hers/sdk", link: "/reference/sdk" },
           ],
         },
       ],

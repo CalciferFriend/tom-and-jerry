@@ -154,6 +154,9 @@ export const COMMANDS: CompletionCommand[] = [
   },
   { name: "upgrade", description: "Check for and install upgrades", flags: ["--check", "--json"] },
 
+  // Local web dashboard
+  { name: "web", description: "Launch local web dashboard (task feed, peer status, send form)", flags: ["--port", "--no-open"] },
+
   // Shell completion
   { name: "completion", description: "Print shell completion script", flags: [] },
 ];
