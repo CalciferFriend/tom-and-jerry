@@ -539,6 +539,33 @@ context and `docs/latent-communication.md` for implementation guide. ✅ (2026-0
 
 ---
 
+## Phase 9 — Analytics, Release Tooling & Observability ✅ (2026-03-15)
+
+> Owned by: Calcifer (H1) + GLaDOS (H2)
+
+### 9a. `hh stats` — deep task analytics (Calcifer) ✅ (2026-03-15)
+- [x] Tasks-per-day ASCII bar chart (configurable window, default 14 days)
+- [x] 24-hour heatmap showing task density by hour
+- [x] Per-peer breakdown: task count, success rate, avg duration, avg cost
+- [x] Top task types inferred from objective text (top 5 first-word patterns)
+- [x] `--days <n>`, `--peer <name>`, `--json` flags
+- [x] Tests: 24 covering bucketing, heatmap, peer aggregation, top-types
+
+### 9b. `hh release` — release workflow automation (Calcifer) ✅ (2026-03-15)
+- [x] Semver bump (--patch/--minor/--major) across all packages/*/package.json
+- [x] Auto-prepend CHANGELOG.md entry with git log since last tag
+- [x] git commit + tag (vX.Y.Z)
+- [x] `--push` flag to push commits + tags
+- [x] `--dry-run` preview mode (no writes)
+- [x] `--yes` skip confirmation prompts
+- [x] Tests: 12 covering version bump logic, CHANGELOG format, dry-run
+
+### 9c. GLaDOS: Windows-side `hh watch` integration tests (GLaDOS)
+- [ ] Mirror mock-gateway pattern for Windows-side wakeAgent E2E
+- [ ] Validate `hh watch` polling loop under fault injection (drop, delay, auth fail)
+
+---
+
 ## Who Owns What
 
 | Area | Owner |

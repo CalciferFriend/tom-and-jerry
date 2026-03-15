@@ -78,6 +78,8 @@ import {
   aliasRun,
   tryRunAlias,
 } from "./commands/alias.ts";
+import { stats } from "./commands/stats.ts";
+import { release } from "./commands/release.ts";
 
 const _require = createRequire(import.meta.url);
 const { version: _hhVersion } = _require("../package.json") as { version: string };
@@ -980,5 +982,41 @@ aliasCmd
   .description("Expand and execute an alias (with optional extra args)")
   .allowUnknownOption()
   .action((name: string, args: string[]) => aliasRun(name, args));
+
+// ── hh stats ──────────────────────────────────────────────────────────────────
+program
+  .command("stats")
+  .description("Deep task analytics with charts, heatmaps, and peer breakdowns")
+  .option("--days <n>", "Time window in days (default: 14)", "14")
+  .option("--peer <name>", "Filter to a specific peer by name")
+  .option("--json", "Output raw analytics as JSON")
+  .action((opts: { days?: string; peer?: string; json?: boolean }) =>
+    stats({
+      days: opts.days ? parseInt(opts.days, 10) : undefined,
+      peer: opts.peer,
+      json: opts.json,
+    }),
+  );
+
+// ── hh release ────────────────────────────────────────────────────────────────
+program
+  .command("release")
+  .description("Automate the release workflow: bump version, update CHANGELOG, git commit + tag")
+  .option("--patch", "Patch version bump (default)", true)
+  .option("--minor", "Minor version bump")
+  .option("--major", "Major version bump")
+  .option("--dry-run", "Preview changes without writing")
+  .option("--push", "Push commits and tags to origin")
+  .option("--yes", "Skip confirmation prompts")
+  .action(
+    (opts: {
+      patch?: boolean;
+      minor?: boolean;
+      major?: boolean;
+      dryRun?: boolean;
+      push?: boolean;
+      yes?: boolean;
+    }) => release(opts),
+  );
 
 program.parseAsync();
