@@ -619,6 +619,54 @@ context and `docs/latent-communication.md` for implementation guide. ✅ (2026-0
 
 ---
 
+## Phase 11 — Web Dashboard, Budget Guards, Notification Delivery ✅ (2026-03-15)
+
+> Owned by: Calcifer (H1)
+
+### 11a. `hh web` — local web dashboard (Calcifer) ✅ (2026-03-15)
+- [x] Single-page HTTP dashboard (Node built-ins only, no extra deps)
+- [x] Live task feed via SSE (`GET /events`) — updates without page refresh
+- [x] Peer status sidebar: gateway health + Tailscale ping per peer
+- [x] Budget panel: weekly cloud/local/total spend + savings estimate
+- [x] Send-task form in sidebar: select peer, type task, submit via `POST /send`
+- [x] Task list with status badges, elapsed time, peer label, output preview
+- [x] Click-to-expand task detail (full output + cost + timestamps)
+- [x] Status filter: All / Pending / Running / Completed / Failed
+- [x] `hh web --port <n>` custom port (default 3847); `--no-open` to skip browser launch
+- [x] 11 tests in `dashboard-server.test.ts`
+- [x] `reference/web.md` docs page + sidebar wired + `reference/cli.md` overview section
+
+### 11b. `hh budget` — per-peer cost caps (Calcifer) ✅ (2026-03-15)
+- [x] `BudgetConfig` Zod schema: `peer`, `daily_usd`, `monthly_usd`, `action` (warn/block)
+- [x] Persistent store: `~/.his-and-hers/budget.json` via `loadBudgets` / `saveBudgets`
+- [x] `addBudget()` / `removeBudget()` for CRUD operations
+- [x] `checkBudget()` — calculates spend from task history, warns at >80%, blocks/warns at 100% based on action
+- [x] Daily/monthly time-window aggregation with peer filtering
+- [x] `hh budget-cap list` — list all budget rules
+- [x] `hh budget-cap set <peer> --daily <usd> --monthly <usd> --action warn|block`
+- [x] `hh budget-cap show <peer>` — inspect current budget + spend
+- [x] `hh budget-cap remove <peer>` — delete budget rule
+- [x] 19 tests in `budget.test.ts` covering CRUD, time windows, action semantics
+- [x] Ready for integration into `hh send` (Phase 12)
+
+### 11c. `hh notify` — webhook & Slack notification targets (Calcifer) ✅ (2026-03-15)
+- [x] `NotifyTarget` Zod schema: `name`, `type` (webhook/slack), `url`, `events[]`, `secret`
+- [x] Event types: `task_sent`, `task_completed`, `task_failed`, `budget_warn`
+- [x] Persistent store: `~/.his-and-hers/notify.json` via `loadNotifyTargets` / `saveNotifyTargets`
+- [x] `deliverNotificationToTarget()` — POST with optional HMAC-SHA256 `X-HH-Signature` header
+- [x] `broadcastNotification()` — fire-and-forget parallel delivery to all matching targets
+- [x] `hh notify-target add <name> --type webhook --url <url> --events <csv>` (optional `--secret`)
+- [x] `hh notify-target list` — list all targets
+- [x] `hh notify-target show <name>` — inspect target config
+- [x] `hh notify-target remove <name>` — delete target
+- [x] `hh notify-target test <name>` — send test notification
+- [x] 14 tests in `notify/targets.test.ts` (1 skipped for long timeout)
+- [x] Ready for integration into `hh send` and budget monitoring (Phase 12)
+
+**Phase 11 complete: 1071 tests passing (up from 998). Web dashboard, budget guards, and notification delivery shipped.**
+
+---
+
 ## Who Owns What
 
 | Area | Owner |

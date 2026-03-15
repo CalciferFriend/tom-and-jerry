@@ -89,6 +89,19 @@ import {
 } from "./commands/profile.ts";
 import { auditList, auditVerify, auditExport } from "./commands/audit.ts";
 import { ci } from "./commands/ci.ts";
+import {
+  budgetList,
+  budgetSet,
+  budgetShow,
+  budgetRemove,
+} from "./commands/budget-caps.ts";
+import {
+  notifyAdd,
+  notifyList,
+  notifyShow,
+  notifyRemove,
+  notifyTest,
+} from "./commands/notify-targets.ts";
 
 const _require = createRequire(import.meta.url);
 const { version: _hhVersion } = _require("../package.json") as { version: string };
@@ -275,6 +288,7 @@ program
   .option("--json", "Output results as machine-readable JSON")
   .action((opts: { peer?: string; json?: boolean }) => doctor(opts));
 
+// ── hh budget (summary) ───────────────────────────────────────────────────────
 program
   .command("budget")
   .description("Show token usage and cost spend across recent tasks")
@@ -286,6 +300,41 @@ program
   .action((opts: { today?: boolean; month?: boolean; all?: boolean; tasks?: boolean; json?: boolean }) => {
     return budget(opts);
   });
+
+// ── hh budget caps (Phase 11b) ────────────────────────────────────────────────
+const budgetCapsCmd = program
+  .command("budget-cap")
+  .alias("cap")
+  .description("[Phase 11b] Manage per-peer cost caps with warn/block actions");
+
+budgetCapsCmd
+  .command("list")
+  .description("List all budget caps with current spend")
+  .option("--json", "Output as JSON")
+  .action((opts: { json?: boolean }) => budgetList(opts));
+
+budgetCapsCmd
+  .command("set <peer>")
+  .description("Set or update a budget cap for a peer")
+  .option("--daily <usd>", "Daily spending limit in USD")
+  .option("--monthly <usd>", "Monthly spending limit in USD")
+  .option("--action <action>", "Action when exceeded: warn | block (default: warn)")
+  .action((peer: string, opts: { daily?: string; monthly?: string; action?: "warn" | "block" }) =>
+    budgetSet(peer, opts),
+  );
+
+budgetCapsCmd
+  .command("show <peer>")
+  .description("Show current spend vs limit for a peer")
+  .option("--json", "Output as JSON")
+  .action((peer: string, opts: { json?: boolean }) => budgetShow(peer, opts));
+
+budgetCapsCmd
+  .command("remove <peer>")
+  .alias("rm")
+  .description("Remove a budget cap")
+  .option("--force", "Skip confirmation prompt")
+  .action((peer: string, opts: { force?: boolean }) => budgetRemove(peer, opts));
 
 // ─── Capabilities ────────────────────────────────────────────────────────────
 
@@ -499,7 +548,7 @@ scheduleCmd
   .argument("<id>", "Schedule ID or prefix")
   .action((id: string) => scheduleRun(id));
 
-// ─── Notify ──────────────────────────────────────────────────────────────────
+// ─── Notify (Phase 5h) ────────────────────────────────────────────────────────
 
 program
   .command("notify")
@@ -516,6 +565,49 @@ program
     const rest = notifyIdx >= 0 ? rawArgs.slice(notifyIdx + 1) : [];
     return notify({ _: rest });
   });
+
+// ─── Notify Targets (Phase 11c) ───────────────────────────────────────────────
+
+const notifyTargetCmd = program
+  .command("notify-target")
+  .alias("ntarget")
+  .description("[Phase 11c] Manage webhook and Slack notification targets with HMAC signing");
+
+notifyTargetCmd
+  .command("add <name>")
+  .description("Add or update a notification target")
+  .requiredOption("--url <url>", "Webhook or Slack URL")
+  .option("--type <type>", "Type: webhook | slack (default: webhook)")
+  .option("--events <csv>", "Comma-separated events: task_sent,task_completed,task_failed,budget_warn")
+  .option("--secret <secret>", "HMAC secret for webhook signature (optional)")
+  .action((name: string, opts: { url: string; type?: "webhook" | "slack"; events?: string; secret?: string }) =>
+    notifyAdd(name, opts),
+  );
+
+notifyTargetCmd
+  .command("list")
+  .alias("ls")
+  .description("List all notification targets")
+  .option("--json", "Output as JSON")
+  .action((opts: { json?: boolean }) => notifyList(opts));
+
+notifyTargetCmd
+  .command("show <name>")
+  .description("Show details of a notification target")
+  .option("--json", "Output as JSON")
+  .action((name: string, opts: { json?: boolean }) => notifyShow(name, opts));
+
+notifyTargetCmd
+  .command("remove <name>")
+  .alias("rm")
+  .description("Remove a notification target")
+  .option("--force", "Skip confirmation prompt")
+  .action((name: string, opts: { force?: boolean }) => notifyRemove(name, opts));
+
+notifyTargetCmd
+  .command("test <name>")
+  .description("Send a test notification to a target")
+  .action((name: string) => notifyTest(name));
 
 // ─── Chat ────────────────────────────────────────────────────────────────────
 

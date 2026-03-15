@@ -240,3 +240,27 @@ export {
   getOrCreateAuditKey,
 } from "./audit/audit.ts";
 export type { AuditEntry, AuditFilter, VerifyResult } from "./audit/audit.ts";
+
+// ─── Phase 11a: Web Dashboard ─────────────────────────────────────────────────
+export { startDashboard } from "./web/dashboard-server.ts";
+export type { DashboardServerHandle } from "./web/dashboard-server.ts";
+
+// ─── Phase 11b: Budget Caps ───────────────────────────────────────────────────
+export {
+  loadBudgets,
+  saveBudgets,
+  addBudget,
+  removeBudget,
+  checkBudget,
+  BudgetConfig,
+} from "./budget.ts";
+export type { CheckBudgetResult } from "./budget.ts";
+
+// ─── Phase 11c: Notification Targets ──────────────────────────────────────────
+export {
+  loadNotifyTargets,
+  saveNotifyTargets,
+  deliverNotificationToTarget,
+  broadcastNotification,
+  NotifyTarget,
+} from "./notify/targets.ts";

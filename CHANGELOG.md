@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`hh web`** — local web dashboard with live task feed. Single-page HTTP server (Node built-ins only)
+  serving a live task feed via SSE (`GET /events`). Peer status sidebar with gateway health + Tailscale
+  ping. Budget panel showing weekly cloud/local/total spend. Send-task form in sidebar. Task list with
+  status badges, elapsed time, peer label, output preview. Click-to-expand task detail. Status filter
+  (All/Pending/Running/Completed/Failed). `--port <n>` custom port (default 3847); `--no-open` to skip
+  browser launch. 11 tests in `dashboard-server.test.ts`.
+- **`hh budget-cap`** — per-peer cost caps with daily/monthly USD limits. `BudgetConfig` Zod schema:
+  `peer`, `daily_usd`, `monthly_usd`, `action` (warn/block). Persistent store at `~/.his-and-hers/budget.json`.
+  `checkBudget()` calculates spend from task history, warns at >80%, blocks/warns at 100% based on action.
+  Commands: `list`, `set <peer> --daily --monthly --action`, `show <peer>`, `remove <peer>`.
+  19 tests covering CRUD, time windows, action semantics. Ready for integration into `hh send`.
+- **`hh notify-target`** — webhook & Slack notification delivery with event filtering. `NotifyTarget` Zod
+  schema: `name`, `type` (webhook/slack), `url`, `events[]` (task_sent/completed/failed/budget_warn),
+  `secret`. Persistent store at `~/.his-and-hers/notify.json`. `deliverNotificationToTarget()` POSTs with
+  optional HMAC-SHA256 `X-HH-Signature` header. `broadcastNotification()` fire-and-forget parallel delivery.
+  Commands: `add <name> --type --url --events [--secret]`, `list`, `show <name>`, `remove <name>`,
+  `test <name>`. 14 tests (1 skipped for long timeout). Ready for integration into `hh send` and budget
+  monitoring.
+- Tests: 998 → **1071** (all passing, 1 skipped)
+
+### Added (earlier in Unreleased)
+
 - **`hh profile`** — named config profiles for switching between multiple setups (home/work, dev/prod).
   Profiles stored in `~/.his-and-hers/profiles/<name>.json` with active tracking in `active-profile.json`.
   `HH_PROFILE` env var overrides active selection. Commands: `list`, `use`, `create`, `show`, `delete`.
