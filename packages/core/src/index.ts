@@ -228,3 +228,6 @@ export {
   findAlias,
 } from "./alias/store.ts";
 export type { HHAlias, AddAliasInput } from "./alias/store.ts";
+
+export { MockGateway } from "./gateway/mock-gateway.ts";
+export type { MockGatewayOptions, ReceivedWake } from "./gateway/mock-gateway.ts";

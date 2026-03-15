@@ -525,11 +525,16 @@ context and `docs/latent-communication.md` for implementation guide. ✅ (2026-0
 - [x] Tab completion for `run` and `alias` subcommands via `hh completion`
 - [x] `docs/reference/alias.md` reference page + sidebar wired
 
-### 8d. E2E integration test suite (both)
-- [ ] Mock H2 gateway server for full send→result round-trip tests (no real network)
-- [ ] Test `hh send --wait`, streaming, retries, timeout against mock gateway
-- [ ] Test pipeline + workflow execution against mock peers
-- [ ] CI job: runs mock-gateway tests on every PR
+### 8d. E2E integration test suite (both) — Calcifer side ✅ (2026-03-15)
+- [x] `MockGateway` class in `packages/core/src/gateway/mock-gateway.ts`
+      — implements OpenClaw WS protocol (challenge → connect → hello-ok → wake → ACK)
+      — `rejectAuth`, `dropConnection`, `helloDelayMs`, `wakeDelayMs` fault-injection opts
+      — `receivedWakes[]` + `clearWakes()` for assertion
+      — EventEmitter: "wake", "connect", "disconnect" events
+      — exported from `@his-and-hers/core`
+- [x] `mock-gateway.test.ts` — 22 tests across happy path, auth failures, timeouts, pipeline simulation, concurrent wakes
+- [x] wakeAgent E2E: correct token → ok:true; wrong token → ok:false + auth error; timeout → ok:false + "timeout"
+- [x] Pipeline simulation: sequential wakes, concurrent broadcast wakes
 - [ ] GLaDOS: contribute Windows-side mock gateway for `hh watch` integration tests
 
 ---
