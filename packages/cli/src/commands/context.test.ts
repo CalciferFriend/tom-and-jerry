@@ -44,19 +44,19 @@ import type { ContextEntry } from "@cofounder/core/context/store";
 const ENTRY_1: ContextEntry = {
   task_id: "task-001",
   summary: "Task: First task\nResult: Done",
-  created_at: "2026-03-10T12:00:00Z",
+  created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days ago
 };
 
 const ENTRY_2: ContextEntry = {
   task_id: "task-002",
   summary: "Task: Second task\nResult: Complete",
-  created_at: "2026-03-15T14:00:00Z",
+  created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
 };
 
 const OLD_ENTRY: ContextEntry = {
   task_id: "task-old",
   summary: "Task: Old task\nResult: Ancient",
-  created_at: "2026-01-01T00:00:00Z",
+  created_at: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(), // 45 days ago
 };
 
 // Suppress console output
